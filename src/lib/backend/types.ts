@@ -85,6 +85,7 @@ export interface Backend {
    *  관리자 키가 있어야 하는데, 공개 홈에 그 키를 두면 누구나 계정을 지울 수 있게 된다.
    *  계정 삭제는 각 서비스 콘솔에서 (설치 가이드에 안내). */
   deleteMember(id: string): Promise<void>;
+  setMemberRole(id: string, role: 'admin' | 'member'): Promise<void>;
 }
 
 /** 콘텐츠 컬렉션 이름 (localStorage 키 → 컬렉션/테이블) — 두 백엔드가 같은 이름을 쓴다 */
