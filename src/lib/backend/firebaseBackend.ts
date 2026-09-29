@@ -48,7 +48,7 @@ export async function createFirebaseBackend(cfg: FirebaseCfg): Promise<Backend> 
   const storage = stMod.getStorage(app);
 
   const {
-    collection, doc, getDoc, getDocs, getDocsFromServer, setDoc, deleteDoc, query, where, onSnapshot, writeBatch, limit,
+    collection, doc, getDoc, getDocs, getDocsFromServer, setDoc, updateDoc, arrayUnion, arrayRemove, deleteDoc, query, where, onSnapshot, writeBatch, limit,
   } = fsMod;
   type Cons = ReturnType<typeof where>;
 
