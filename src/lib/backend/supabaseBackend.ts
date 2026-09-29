@@ -271,5 +271,9 @@ export async function createSupabaseBackend(
       const { error } = await sb.from('profiles').delete().eq('id', id);
       if (error) throw error;
     },
+        async setMemberRole(id, role) {
+      const { error } = await sb.from('profiles').update({ role }).eq('id', id);
+      if (error) throw error;
+    },
   };
 }
