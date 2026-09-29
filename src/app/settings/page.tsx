@@ -976,6 +976,8 @@ function MemberPane() {
   const [codeLoaded, setCodeLoaded] = useState(false);
   const [regVer, setRegVer] = useState(0);   // 가입 계정 삭제 후 목록 갱신용
   const [removedIds, setRemovedIds] = useState<string[]>([]);   // 서버 모드에서 방금 지운 회원
+    const { user: me } = useAuth();
+  const [roleOv, setRoleOv] = useState<Record<string, 'admin' | 'member'>>({});
   useEffect(() => { setCode(inviteCode()); setCodeLoaded(true); }, []);
   void regVer;
 
@@ -1015,7 +1017,25 @@ function MemberPane() {
     });
   };
   const allTags = [...new Set(Object.values(mTags).flat())];
-  const isAdminOf = (m: { id: string; role?: string }) => m.role === 'admin' || m.id === 'admin';
+    const isAdminOf = (m: { id: string; role?: string }) => (roleOv[m.id] ?? m.role) === 'admin' || m.id === 'admin';
+  const changeRole = (m: { id: string; nickname: string }, next: 'admin' | 'member') => {
+    const grant = next === 'admin';
+    del.ask(
+      grant ? `「${m.nickname}」 회원에게 관리자 권한을 줄까요?` : `「${m.nickname}」 회원의 관리자 권한을 해제할까요?`,
+      () => {
+        void backend()?.setMemberRole(m.id, next)
+          .then(() => {
+            setRoleOv(v => ({ ...v, [m.id]: next }));
+            toast(grant ? '관리자로 지정했습니다' : '관리자 권한을 해제했습니다');
+          })
+          .catch(e => toast(e instanceof Error && e.message ? e.message : '바꾸지 못했습니다 — 관리자 계정으로 로그인했는지 확인해 주세요'));
+      },
+      grant
+        ? '관리자는 모든 글을 쓰고 고치고 지울 수 있고, 환경설정(디자인·메뉴·회원 관리 등)도 바꿀 수 있습니다. 상대가 새로고침하거나 다시 로그인하면 적용됩니다.'
+        : '이 회원은 다시 일반 회원이 됩니다. 상대가 새로고침하거나 다시 로그인하면 적용됩니다.',
+      grant ? '관리자 지정' : '권한 해제',
+    );
+  };
   const filteredMembers = members.filter(m => {
     if (removedIds.includes(m.id)) return false;   // 방금 지운 회원 (목록은 한 번만 받아 온다)
     const k = mq.trim().toLowerCase();
@@ -1103,6 +1123,12 @@ function MemberPane() {
                 onClick={() => { setTagFor(m.id); setTagInput(''); }}>＋</span>
             )}
             <span className="pill" style={{ marginLeft: 'auto' }}>{isAdminOf(m) ? '관리자' : '회원'}</span>
+                        {serverOn2 && !isBase && m.id !== me?.id && (
+              <button className="btn btn-ghost" style={{ padding: '4px 11px', fontSize: 10.5, borderRadius: 20, lineHeight: 'normal', letterSpacing: '.04em' }}
+                onClick={() => changeRole(m, isAdminOf(m) ? 'member' : 'admin')}>
+                {isAdminOf(m) ? '권한 해제' : '관리자 지정'}
+              </button>
+            )}
             {!isBase && !isAdminOf(m) && (
               // 회원 뱃지(.pill)와 같은 규격 — padding·글씨·radius 동일 (v1.9)
               <button className="btn btn-ghost" style={{ padding: '4px 11px', fontSize: 10.5, borderRadius: 20, lineHeight: 'normal', letterSpacing: '.04em' }}
