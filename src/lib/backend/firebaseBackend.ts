@@ -398,6 +398,15 @@ export async function createFirebaseBackend(cfg: FirebaseCfg): Promise<Backend> 
       // profiles 문서만 지운다 — Authentication 계정은 관리자 키가 있어야 지울 수 있다
       await deleteDoc(doc(db, 'profiles', id));
     },
+    async setMemberRole(id, role) {
+      const own = await ownerInfo();
+      if (!own?.uid) throw new Error('소유자 정보를 찾을 수 없습니다.');
+      if (id === own.uid) throw new Error('소유자의 권한은 바꿀 수 없습니다.');
+      const ref = doc(db, 'meta', 'owner');
+      const r = await withLimit(updateDoc(ref, { admins: role === 'admin' ? arrayUnion(id) : arrayRemove(id) }));
+      if (r === TIMEOUT) throw new Error(NO_REACH);
+      ownerCache = undefined;
+    },    
   };
 
   // (deleteDoc은 삭제 배치에서 doc 단위로 쓰지 않아 참조만 유지)
