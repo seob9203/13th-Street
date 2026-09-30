@@ -91,6 +91,10 @@ export default function RpPage() {
   const [speaker, setSpeaker] = useState<string>('');   // charId | 'desc' (플레이어 발화는 없앴다, v2.0)
   const [pickOpen, setPickOpen] = useState(false);
   useEffect(() => { setSpeaker(speakChars[0]?.id ?? 'desc'); setPickOpen(false); }, [sel?.id, speakChars]);
+  
+  // 13th-street: 좌우 지정 — 캐릭터별로 고른 말풍선 위치를 기억해 두는 곳
+  const [sideOf, setSideOf] = useState<Record<string, 'left' | 'right'>>({});
+  useEffect(() => { setSideOf({}); }, [sel?.id]);
 
   // 입장 시 읽음 처리 (N 뱃지 해제) — 브라우저에만 기록한다 (v2.0).
   // 예전엔 방 문서의 lastRead에 써서, 방을 열어 보기만 해도 남의 방을 UPDATE 하게 되어
@@ -121,6 +125,7 @@ export default function RpPage() {
       // 발화 당시 소유 기록 — 캐릭터가 삭제돼도 재연동 시 어느 리스트에서 고를지 판별 (v1.9)
       charOwn: kind === 'char' ? rpChars.find(c => c.id === speaker)?.own : undefined,
       authorId: user.id, text: t, date: new Date().toISOString(),
+            side: kind === 'char' ? sideOf[speaker] : undefined,   // 13th-street: 좌우 지정
     };
     // 방은 건드리지 않는다 — 발화만 자기 행으로 (v2.0)
     setMsgRows([...msgRows, { ...m, roomId: sel.id }]);
@@ -315,6 +320,9 @@ ${rows}
   // 회원 계정(오너) 이름은 화면에 내지 않는다 — 계정은 접근 권한용일 뿐 (v2.0 사용자 요청).
   const speakerLabel = speaker === 'desc' ? '지문 (DESC)' : (rpChars.find(c => c.id === speaker)?.name ?? '');
   const speakerChar = rpChars.find(c => c.id === speaker);
+        // 13th-street: 좌우 지정 — 지금 고른 캐릭터의 말풍선 위치 (안 골랐으면 자동값)
+  const autoRightOf = (c?: Character) => !!c && (!!charGrant(c, user.id) || (!!c.own && isAdmin));
+  const curSide = sideOf[speaker] ?? (autoRightOf(speakerChar) ? 'right' : 'left');
 
   return (
     <section className={`page page-rp ${mFocus ? 'rp-focus' : ''}`}>
@@ -415,9 +423,10 @@ ${rows}
                   // 아닌 캐릭터가 왼쪽. 관리자에게는 자캐(own)가 자기 캐릭터다.
                   // 그래서 같은 방이라도 사람마다 좌우가 반대로 보인다(각자 자기 쪽이 오른쪽).
                   // 삭제된 캐릭터는 발화 당시 기록(charOwn)으로 판단.
-                  const rightSide = ch
+                  const autoRight = ch
                     ? (!!charGrant(ch, user.id) || (!!ch.own && isAdmin))
                     : (!!m.charOwn && isAdmin);
+                  const rightSide = m.side ? m.side === 'right' : autoRight;   // 13th-street: 지정값 우선
                   return (
                     <div key={m.id} className={`msg ${rightSide ? 'me' : ''}`} style={{ ['--cc' as string]: hexRgb(ch?.color) }}>
                       <Face ch={ch} className="face" />
@@ -464,6 +473,14 @@ ${rows}
                   </div>
                   {/* 플레이스홀더 없음 (v1.8) · Enter 전송 / Shift+Enter 줄바꿈 · /desc 명령 지원
                       포커스 중엔 모바일에서 역극 영역만 표시 (v1.9 — blur는 SEND 클릭이 씹히지 않게 지연) */}
+                  {speaker !== 'desc' && (
+                    <button type="button" className="btn btn-ghost"
+                      style={{ padding: '0 10px', height: 44, fontSize: 11, flexShrink: 0 }}
+                      title="이 캐릭터 말풍선 위치"
+                      onClick={() => setSideOf(s => ({ ...s, [speaker]: curSide === 'right' ? 'left' : 'right' }))}>
+                      {curSide === 'right' ? '오른쪽 ▶' : '◀ 왼쪽'}
+                    </button>
+                  )}
                   <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
                     onFocus={() => setMFocus(true)}
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
