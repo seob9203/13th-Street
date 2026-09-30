@@ -143,15 +143,19 @@ export default function RpPage() {
   // 메시지 수정(본인) — 모달
   const [editMsg, setEditMsg] = useState<RpMessage | null>(null);
   const [editText, setEditText] = useState('');
+    // 13th-street: 좌우 지정 — 수정 창에서 고른 말풍선 위치 ('auto'는 자동)
+  const [editSide, setEditSide] = useState<'auto' | 'left' | 'right'>('auto');
+  useEffect(() => { setEditSide(editMsg?.side ?? 'auto'); }, [editMsg]);
   const saveMsg = () => {
     if (!sel || !editMsg) return;
     if (!editText.trim()) { toast('내용을 입력해 주세요'); return; }
     const t = editText.trim();
+    const sd = editSide === 'auto' ? undefined : editSide;   // 13th-street: 좌우 지정
     if (msgRows.some(x => x.id === editMsg.id)) {
-      setMsgRows(msgRows.map(x => (x.id === editMsg.id ? { ...x, text: t } : x)));
+      setMsgRows(msgRows.map(x => (x.id === editMsg.id ? { ...x, text: t, side: sd } : x)));
     } else {
       setRooms(rooms.map(r => r.id === sel.id
-        ? { ...r, messages: r.messages.map(m => m.id === editMsg.id ? { ...m, text: t } : m) } : r));
+        ? { ...r, messages: r.messages.map(m => m.id === editMsg.id ? { ...m, text: t, side: sd } : m) } : r));
     }
     setEditMsg(null);
   };
@@ -571,7 +575,21 @@ ${rows}
           <button className="btn btn-ghost" onClick={() => setEditMsg(null)}>CANCEL</button>
           <button className="btn btn-dark" onClick={saveMsg}>SAVE</button>
         </>}>
-        <KTextarea style={{ minHeight: 100 }} value={editText} onChange={e => setEditText(e.target.value)} />
+       <div style={{ display: 'grid', gap: 11 }}>
+          <KTextarea style={{ minHeight: 100 }} value={editText} onChange={e => setEditText(e.target.value)} />
+          {/* 13th-street: 좌우 지정 — 캐릭터 대사일 때만 표시 */}
+          {editMsg?.kind === 'char' && (
+            <div>
+              <label className="k-label" style={{ marginBottom: 5 }}>말풍선 위치</label>
+              <KSelect value={editSide} onChange={v => setEditSide(v as 'auto' | 'left' | 'right')}
+                options={[
+                  { value: 'auto', label: '자동 (보는 사람 기준)' },
+                  { value: 'left', label: '왼쪽' },
+                  { value: 'right', label: '오른쪽' },
+                ]} />
+            </div>
+          )}
+        </div>
       </Modal>
       {/* 캐릭터 다시 연결 — 삭제된 캐릭터의 발화를 다른 캐릭터로 (v1.9) */}
       <Modal open={relinkOpen} onClose={() => setRelinkOpen(false)} small title="캐릭터 다시 연결"
