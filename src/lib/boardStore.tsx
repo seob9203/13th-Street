@@ -24,6 +24,7 @@ export const DEFAULT_GALLERY_BADGES: BoardBadge[] = [
   { id: 'single', label: '단일', bg: '#eef0f2', border: '#d7dae0', fg: '#5d636d' },
   // 단일(세로정렬) (v1.9) — 로그와 달리 이미지 사이 갭을 두고 세로로 죽 내려보는 게시글
   { id: 'vlist', label: '단일(세로)', bg: '#eef0f2', border: '#d7dae0', fg: '#5d636d' },
+    { id: 'page', label: '페이지', bg: '#eef0f2', border: '#d7dae0', fg: '#5d636d' },   // 13th-street: 페이지 유형
 ];
 
 /** 갤러리 말머리 (v2.0) — 예전에는 코드에 박혀 있어 바꿀 수 없었다. 게시판 말머리처럼 자유롭게 관리 */
