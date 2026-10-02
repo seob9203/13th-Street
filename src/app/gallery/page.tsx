@@ -13,7 +13,8 @@ import { CroppedBlobImg, CropEditor, CropValue } from '@/components/ui/CropEdito
 import { useBlobUrl } from '@/lib/blobStore';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useMainStore } from '@/lib/mainStore';
-import { useCardSort, mergeOrder } from '@/lib/cardSort';
+import { useCardSort } from '@/lib/cardSort';
+import { OrderMenu, orderNoOf, moveToOrder } from '@/components/ui/OrderMenu';   // 13th-street: 순서 번호로 옮기기
 import { useMenuSettings, canGalleryWrite } from '@/lib/menuStore';
 import { useBoardSettings, galleryCatsOf } from '@/lib/boardStore';   // 13th-street: 말머리 필터
 
@@ -46,6 +47,7 @@ function BackupPageInner() {
      수정 화면까지 안 가도 되게. 관리자와 글쓴이만, 이미지가 있는 글만 */
   const [ctx, setCtx] = useState<{ x: number; y: number; post: BackupPost } | null>(null);
   const [cropPost, setCropPost] = useState<BackupPost | null>(null);
+    const [ord, setOrd] = useState<{ x: number; y: number; post: BackupPost } | null>(null);   // 13th-street: 순서 번호 메뉴
   useEffect(() => {
     if (!ctx) return;
     const close = () => setCtx(null);
@@ -53,7 +55,9 @@ function BackupPageInner() {
     return () => document.removeEventListener('mousedown', close);
   }, [ctx]);
   const onCtx = (e: React.MouseEvent, p: BackupPost) => {
-    if (!(isAdmin || (!!user && p.authorId === user.id)) || !p.images[0]) return;
+    const canThumb = (isAdmin || (!!user && p.authorId === user.id)) && !!p.images[0];
+    const canOrder = editOn && isAdmin;   // 13th-street: 편집모드에서는 순서 번호 옮기기도
+    if (!canThumb && !canOrder) return;
     e.preventDefault();
     e.stopPropagation();
     setCtx({ x: e.clientX, y: e.clientY, post: p });
@@ -73,7 +77,22 @@ function BackupPageInner() {
   const catList = [...regCats, ...extraCats];
 
   // 편집모드 카드 드래그 정렬 (v1.9 — 갤러리 보기)
-    const sort = useCardSort(visible, next => setPosts(mergeOrder(posts, oldestFirst ? [...next].reverse() : next)), editOn && isAdmin);   // 13th-street: 등록순이면 되돌려서 저장
+    // 13th-street: 보이는 글끼리만 자리를 바꾸고, 안 보이는 글(다른 말머리·검색에서 빠진 글)의 자리는 그대로 둔다
+  const placeShown = (all: BackupPost[], shownNext: BackupPost[]) => {
+    const ids = new Set(shownNext.map(x => x.id));
+    let k = 0;
+    return all.map(x => (ids.has(x.id) ? shownNext[k++] : x));
+  };
+  const saveOrder = (next: BackupPost[]) =>
+    setPosts(placeShown(posts, oldestFirst ? [...next].reverse() : next));
+  const sort = useCardSort(visible, saveOrder, editOn && isAdmin);
+  // 13th-street: 순서 번호로 옮기기 — 번호는 지금 화면에 보이는 순서 기준 (10, 20, 30 …)
+  const applyOrder = (wanted: number) => {
+    if (!ord) return;
+    const from = visible.findIndex(x => x.id === ord.post.id);
+    if (from >= 0) saveOrder(moveToOrder(visible, from, wanted));
+    setOrd(null);
+  };
 
   /* 게시물이 쌓이면 페이지로 (v2.0 사용자 요청) — 보기에 따라 한 장 분량이 다르다.
      갤러리 보기는 한 줄에 3개라 12개(4줄), 리스트 보기는 글 목록과 같은 20개. */
@@ -163,8 +182,9 @@ function BackupPageInner() {
         </div>
       {/* 게시물이 없으면 컨테이너 자체를 숨김 — 빈 패널이 안내문 위에 카드처럼 남던 버그 (v1.9 사용자 발견) */}
       <div className="panel flush" style={{ display: view === 'list' && visible.length > 0 ? undefined : 'none' }}>
-          {paged.map(p => (
-            <div key={p.id} className="list-item" onClick={() => router.push(`/gallery/${p.id}`)}
+          {paged.map((p, si) => (
+            <div key={p.id} className="list-item" {...sort(start + si)}
+              onClick={() => { if (!editOn) router.push(`/gallery/${p.id}`); }}
               onContextMenu={e => onCtx(e, p)}>
               <div className="th" style={{ position: 'relative' }}><CroppedBlobImg fileRef={p.images[0]} crop={p.thumbCrop} ph={p.phList[0] ?? 'cool'} /></div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -202,12 +222,26 @@ function BackupPageInner() {
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             borderBottom: '1px solid var(--line)', marginBottom: 3,
           }}>{ctx.post.title}</div>
-          <button style={{ padding: '7px 12px', fontSize: 12, borderRadius: 6, textAlign: 'left' }}
-            onClick={() => { setCropPost(ctx.post); setCtx(null); }}>썸네일 수정</button>
+          {ctx.post.images[0] && (isAdmin || (!!user && ctx.post.authorId === user.id)) && (
+            <button style={{ padding: '7px 12px', fontSize: 12, borderRadius: 6, textAlign: 'left' }}
+              onClick={() => { setCropPost(ctx.post); setCtx(null); }}>썸네일 수정</button>
+          )}
+          {editOn && isAdmin && (
+            <button style={{ padding: '7px 12px', fontSize: 12, borderRadius: 6, textAlign: 'left' }}
+              onClick={() => { setOrd({ x: ctx.x, y: ctx.y, post: ctx.post }); setCtx(null); }}>순서 번호 옮기기</button>
+          )}
         </div>,
         document.body,
       )}
 
+      {/* 13th-street: 순서 번호로 옮기기 (편집모드 우클릭) */}
+      {ord && typeof document !== 'undefined' && createPortal(
+        <OrderMenu at={{ x: ord.x, y: ord.y }}
+          current={orderNoOf(Math.max(0, visible.findIndex(x => x.id === ord.post.id)))}
+          total={visible.length}
+          onApply={applyOrder} onClose={() => setOrd(null)} />,
+        document.body,
+      )}
       {/* 썸네일 크롭 — 작성 폼과 같은 4:3 크롭을 리스트에서 바로 (v2.0 사용자 요청) */}
       {cropPost && (
         <ThumbCropModal post={cropPost} onClose={() => setCropPost(null)}
