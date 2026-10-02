@@ -33,9 +33,13 @@ function BackupPageInner() {
   const [menuSet, , menuLoaded] = useMenuSettings();
   const [view, setView] = useState<'gal' | 'list'>('gal');
   const [viewInit, setViewInit] = useState(false);
-  useEffect(() => {
-    if (menuLoaded && !viewInit) { setView(menuSet.backupView); setViewInit(true); }
-  }, [menuLoaded, viewInit, menuSet.backupView]);
+    useEffect(() => {
+    if (menuLoaded && !viewInit) {
+      // 13th-street: 갤러리별 기본 보기 — 이 갤러리에 정해 둔 값이 있으면 그걸, 없으면 전체 기본값
+      setView(menuSet.backupViewBySec?.[sec.id] ?? menuSet.backupView);
+      setViewInit(true);
+    }
+  }, [menuLoaded, viewInit, menuSet.backupView, menuSet.backupViewBySec, sec.id]);
   const [q, setQ] = useState('');
     // 13th-street: 말머리 필터 — 'all'이면 전체
   const { st: boardSet } = useBoardSettings();
