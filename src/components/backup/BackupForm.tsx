@@ -89,6 +89,7 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
   const [visibility, setVisibility] = useState<Visibility>(initial?.visibility ?? 'public');
   const [foldType, setFoldType] = useState<FoldType | 'none'>(initial?.fold?.type ?? 'none');
   const [foldLabel, setFoldLabel] = useState(initial?.fold?.label ?? '');
+    const [bgMode, setBgMode] = useState<'' | 'light' | 'dark'>(initial?.bgMode ?? '');   // 13th-street: 글 배경
   const [cropFor, setCropFor] = useState<UpFile | null>(null);
 
   if (!user) {
@@ -132,6 +133,7 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
         thumbCrop: files[0]?.crop, // 대표 이미지 크롭 (6.1)
         desc, category, tags: parseTags(tagsText), madeDate: madeDate || undefined,
         date: new Date().toISOString(), author: user.nickname, authorId: user.id,
+                bgMode: bgMode || undefined,   // 13th-street: 글 배경
         visibility,
         fold: foldType === 'none' ? null : { type: foldType, label: foldType === 'custom' ? foldLabel : undefined },
       };
@@ -144,6 +146,7 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
         images: imageIds, phList: files.length ? [] : x.phList,
         thumbCrop: files[0]?.crop,
         desc, category, tags: parseTags(tagsText), madeDate: madeDate || undefined, visibility,
+                bgMode: bgMode || undefined,   // 13th-street: 글 배경
         fold: foldType === 'none' ? null : { type: foldType, label: foldType === 'custom' ? foldLabel : undefined },
       } : x));
       toast('저장되었습니다');
@@ -233,6 +236,16 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
               {/* 말머리 목록은 환경설정 > 게시판 관리에서 관리 (v2.0 — 예전에는 코드에 박혀 있었다) */}
               <KSelect minWidth={120} value={category} onChange={setCategory}
                 options={galleryCats.map(c => ({ value: c.label, label: c.label }))} />
+            </div>
+            {/* 13th-street: 글 보는 화면 배경 */}
+            <div className="form-row">
+              <label className="k-label" style={{ width: 70 }}>배경</label>
+              <KSelect minWidth={120} value={bgMode} onChange={v => setBgMode(v as '' | 'light' | 'dark')}
+                options={[
+                  { value: '', label: '기본 (홈 테마)' },
+                  { value: 'light', label: '밝게' },
+                  { value: 'dark', label: '어둡게' },
+                ]} />
             </div>
             {/* 태그 (v2.0 사용자 요청) — 목록·카드에 나열되고 검색에 걸린다 */}
             <div className="form-row">
