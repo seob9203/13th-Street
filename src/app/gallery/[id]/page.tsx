@@ -1,6 +1,6 @@
 'use client';
 // 그림백업 상세 (4.11) — 로그형: 세로 스크롤 뷰어 / 단일형: 큰 이미지 + 썸네일 스트립 + 좌우 넘김
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useHrefBlock } from '@/components/shell/MenuGuard';
 import { sectionHref, MAIN_SEC, useSectionTitle } from '@/lib/sectionStore';
@@ -165,6 +165,13 @@ export default function BackupDetailPage() {
  *  이미지의 오른쪽 절반을 누르면 다음 장, 왼쪽 절반은 이전 장. 키보드 ← → 도 된다. */
 function PageViewer({ imgs }: { imgs: { url?: string; ph?: string }[] }) {
   const [n, setN] = useState(0);
+    // 장을 넘기면 뷰어가 화면 맨 위에 오도록 (처음 열 때는 움직이지 않음)
+  const boxRef = useRef<HTMLDivElement>(null);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [n]);
   const total = imgs.length;
   const go = (d: number) => setN(c => Math.min(total - 1, Math.max(0, c + d)));
   useEffect(() => {
@@ -182,12 +189,12 @@ function PageViewer({ imgs }: { imgs: { url?: string; ph?: string }[] }) {
   const u = useBlobUrl(im?.url);
   if (!im) return null;
   // eslint-disable-next-line @next/next/no-img-element
-  const pic = u ? <img src={u} alt="" style={{ maxWidth: '100%', height: 'auto', display: 'block', margin: '0 auto' }} /> : (
+    const pic = u ? <img src={u} alt="" style={{ maxWidth: '100%', maxHeight: 'calc(100dvh - 180px)', width: 'auto', height: 'auto', display: 'block', margin: '0 auto' }} /> : (
     <div className={`ph ${im.ph ?? ''}`} style={{ aspectRatio: '16/10' }}><span>IMAGE</span></div>
   );
   const btn = { padding: '4px 16px' } as const;
   return (
-    <div>
+      <div ref={boxRef} style={{ scrollMarginTop: 80 }}>
       <div style={{ borderRadius: 10, overflow: 'hidden', cursor: 'pointer', userSelect: 'none' }}
         onClick={e => {
           const r = e.currentTarget.getBoundingClientRect();
