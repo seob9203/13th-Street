@@ -15,6 +15,7 @@ import { KInput, KTextarea, KSelect, KCheck } from '@/components/ui/Kit';
 import { CroppedBlobImg } from '@/components/ui/CropEditor';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
+import { getSetting, setSetting, onSettingChange } from '@/lib/settingStore';   // 13th-street: 말머리 순서
 
 /** 캐릭터 얼굴 칩 (썸네일 or 데모 플레이스홀더) */
 function Face({ ch, className }: { ch?: Character; className: string }) {
@@ -72,8 +73,10 @@ export default function RpPage() {
   const TAG_ORDER_KEY = 'ohome.rptagorder.v1';
   const [tagOrder, setTagOrder] = useState<string[]>([]);
   const [tagEdit, setTagEdit] = useState(false);
-  useEffect(() => {
-    try { setTagOrder(JSON.parse(localStorage.getItem(TAG_ORDER_KEY) ?? '[]') as string[]); } catch { /* 무시 */ }
+   useEffect(() => {
+    const load = () => { const v = getSetting<string[]>(TAG_ORDER_KEY, []); setTagOrder(Array.isArray(v) ? v : []); };
+    load();
+    return onSettingChange(k => { if (k === TAG_ORDER_KEY) load(); });
   }, []);
   const rawTags = Array.from(new Set(allMine.map(r => r.tag).filter(Boolean) as string[]));
   // 저장된 순서대로 줄 세우고, 순서가 없는 새 말머리는 맨 뒤에
@@ -87,7 +90,7 @@ export default function RpPage() {
     const next = [...tagList];
     [next[i], next[j]] = [next[j], next[i]];
     setTagOrder(next);
-    try { localStorage.setItem(TAG_ORDER_KEY, JSON.stringify(next)); } catch { /* 무시 */ }
+        setSetting(TAG_ORDER_KEY, next);
   };
   const sel = myRooms.find(r => r.id === selId) ?? myRooms[0];
   const cntS = (s: 'all' | 'ongoing' | 'done') =>
@@ -566,12 +569,14 @@ ${rows}
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
                 <h4 style={{ margin: 0 }}>말머리</h4>
-                <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 10 }}
-                  onClick={() => setTagEdit(e => !e)}>{tagEdit ? 'DONE' : 'ORDER'}</button>
+                {isAdmin && (
+                  <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 10 }}
+                    onClick={() => setTagEdit(e => !e)}>{tagEdit ? 'DONE' : 'ORDER'}</button>
+                )}
               </div>
               <div className={`tag ${fTag === 'all' ? 'on' : ''}`} onClick={() => setFTag('all')}>전체</div>
               {tagList.map((t, i) => (
-                <div key={t} className={`tag ${fTag === t ? 'on' : ''}`} onClick={() => setFTag(t)}
+                <div key={t} className={`tag ${fTag === t ? 'on' : ''}`} onClick={() => { setFTag(t); setFStatus('all'); }}
                   style={tagEdit ? { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } : undefined}>
                   <span>{t} <small>{allMine.filter(r => r.tag === t).length}</small></span>
                   {tagEdit && (
