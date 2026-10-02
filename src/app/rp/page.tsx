@@ -50,6 +50,11 @@ export default function RpPage() {
   const [rels] = useLocalList<Relation>('ohome.rels.v1', REL_SEED);
   const [selId, setSelId] = useState<string | null>(null);
   const [fStatus, setFStatus] = useState<'all' | 'ongoing' | 'done'>('ongoing'); // 우측 상태 필터 — 진행중이 기본
+    // 13th-street: 말머리 — 필터 / 새 방 입력 / 말머리 수정 창
+  const [fTag, setFTag] = useState<string>('all');
+  const [nTag, setNTag] = useState('');
+  const [tagOpen, setTagOpen] = useState(false);
+  const [tagText, setTagText] = useState('');
   // 모바일 (v1.9 사용자 확정) — 방 목록은 위에 접힌 바로, 입력창 포커스 중엔 역극 영역만 표시
   const [mListOpen, setMListOpen] = useState(false);
   const [mFocus, setMFocus] = useState(false);
@@ -60,7 +65,10 @@ export default function RpPage() {
       .sort((a, b) => rpLastDate(b, messagesFor(msgRows, b.id, b.messages))
         .localeCompare(rpLastDate(a, messagesFor(msgRows, a.id, a.messages))))
     : []), [rooms, user, msgRows, rels, chars]);
-  const myRooms = useMemo(() => allMine.filter(r => fStatus === 'all' || r.status === fStatus), [allMine, fStatus]);
+  const myRooms = useMemo(() => allMine.filter(r =>
+    (fStatus === 'all' || r.status === fStatus) && (fTag === 'all' || r.tag === fTag)), [allMine, fStatus, fTag]);   // 13th-street: 말머리 필터
+  // 13th-street: 말머리 — 내 방들에 쓰인 말머리 목록
+  const tagList = Array.from(new Set(allMine.map(r => r.tag).filter(Boolean) as string[]));
   const sel = myRooms.find(r => r.id === selId) ?? myRooms[0];
   const cntS = (s: 'all' | 'ongoing' | 'done') =>
     allMine.filter(r => s === 'all' || r.status === s).length;
@@ -191,6 +199,7 @@ export default function RpPage() {
     const members = Array.from(new Set([user.id, ...nMembers]));
     const room: RpRoom = {
       id: newId(), title: nTitle.trim(), relId: nRel === 'none' ? undefined : nRel,
+            tag: nTag.trim() || undefined,   // 13th-street: 말머리
       // 원래 설정(base)이면 남기지 않는다 — 예전 방과 같은 모습이라 되돌리기도 쉽다
       auId: nRel !== 'none' && nAu !== 'base' ? nAu : undefined,
       memberIds: members, status: 'ongoing', isPublic: false,
@@ -200,6 +209,7 @@ export default function RpPage() {
     setSelId(room.id);
     setNewOpen(false);
     setNTitle(''); setNRel('none'); setNMembers([]);
+        setNTag('');   // 13th-street: 말머리
   };
 
   const canManage = sel && user && (sel.createdBy === user.id || isAdmin);
@@ -364,7 +374,7 @@ ${rows}
             {myRooms.map(r => (
               <div key={r.id} className={`rp-room ${sel?.id === r.id ? 'on' : ''}`}
                 onClick={() => { setSelId(r.id); setMListOpen(false); }}>
-                <b>{r.title} {rpHasNew(r, user.id, msgsOf(r)) && sel?.id !== r.id && <span className="new">N</span>}</b>
+                <b>{r.tag && <span style={{ color: 'var(--accent)', marginRight: 6 }}>[{r.tag}]</span>}{r.title} {rpHasNew(r, user.id, msgsOf(r)) && sel?.id !== r.id && <span className="new">N</span>}</b>
                 <small>{roomSub(r)}</small>
               </div>
             ))}
@@ -382,7 +392,7 @@ ${rows}
             <>
               <div className="rp-head">
                 <div>
-                  <b>{sel.title}</b>
+                  <b>{sel.tag && <span style={{ color: 'var(--accent)', marginRight: 6 }}>[{sel.tag}]</span>}{sel.title}</b>
                   <small>{roomLabel(sel)}</small>
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -391,6 +401,10 @@ ${rows}
                   {canManage && brokenChars.length > 0 && (
                     <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5, color: 'var(--accent)' }}
                       onClick={() => setRelinkOpen(true)}>RELINK</button>
+                  )}
+                  {canManage && (
+                    <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5 }}
+                      onClick={() => { setTagText(sel.tag ?? ''); setTagOpen(true); }}>TAG</button>
                   )}
                   {canManage && sel.status === 'ongoing' && (
                     <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5 }}
@@ -527,6 +541,18 @@ ${rows}
           <div className={`tag ${fStatus === 'done' ? 'on' : ''}`} onClick={() => setFStatus('done')}>
             완결 <small>{cntS('done')}</small>
           </div>
+                    {/* 13th-street: 말머리 필터 */}
+          {tagList.length > 0 && (
+            <>
+              <h4 style={{ marginTop: 14 }}>말머리</h4>
+              <div className={`tag ${fTag === 'all' ? 'on' : ''}`} onClick={() => setFTag('all')}>전체</div>
+              {tagList.map(t => (
+                <div key={t} className={`tag ${fTag === t ? 'on' : ''}`} onClick={() => setFTag(t)}>
+                  {t} <small>{allMine.filter(r => r.tag === t).length}</small>
+                </div>
+              ))}
+            </>
+          )}
         </div>
       </div>
 
@@ -541,6 +567,11 @@ ${rows}
           <div>
             <label className="k-label" style={{ marginBottom: 5 }}>Title</label>
             <KInput value={nTitle} onChange={e => setNTitle(e.target.value)} />
+          </div>
+          {/* 13th-street: 말머리 */}
+          <div>
+            <label className="k-label" style={{ marginBottom: 5 }}>말머리 (선택) — 예: 본편, 외전</label>
+            <KInput value={nTag} onChange={e => setNTag(e.target.value)} />
           </div>
           {/* 기반 자관 + 그 자관의 AU (v2.0 사용자 요청) — AU를 고르면 방 안의 캐릭터가
               그 AU 프로필(이름·색·이미지)로 보인다. AU가 없는 자관에는 옆 칸이 뜨지 않는다 */}
@@ -630,6 +661,15 @@ ${rows}
         </div>
       </Modal>
 
+      {/* 13th-street: 말머리 설정 */}
+      <Modal open={tagOpen} onClose={() => setTagOpen(false)} small title="말머리 설정"
+        desc="비워 두면 말머리가 없어집니다"
+        actions={<>
+          <button className="btn btn-ghost" onClick={() => setTagOpen(false)}>CANCEL</button>
+          <button className="btn btn-dark" onClick={() => { patchRoom({ tag: tagText.trim() }); setTagOpen(false); }}>SAVE</button>
+        </>}>
+        <KInput value={tagText} onChange={e => setTagText(e.target.value)} />
+      </Modal>
       {/* 완결 확인 (삭제 아님 — END/CANCEL) */}
       <ConfirmModal open={endAsk} title="역극을 완결 처리하시겠습니까?"
         body="완결 후에는 공개 전환과 로그 내보내기를 사용할 수 있습니다."
