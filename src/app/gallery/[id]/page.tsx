@@ -75,6 +75,12 @@ export default function BackupDetailPage() {
       });
     };
   }, [bgMode]);
+  
+  // 13th-street: 다른 글로 넘어가면 맨 위로, 이미지 순번은 처음으로
+  useEffect(() => {
+    document.getElementById('appMain')?.scrollTo({ top: 0 });
+    setCur(0);
+  }, [id]);
   if (blocked) return blocked;
   if (!loaded) return <section className="page" />;
   if (!p || (p.visibility === 'private' && !isAdmin) || (p.visibility === 'member' && !user)) {
@@ -92,6 +98,14 @@ export default function BackupDetailPage() {
      예전 글이나 손님이 쓴 글은 authorId가 없는데, 비로그인 방문자도 user?.id가 없어
      `undefined === undefined`로 통과했다 — 아무나 남의 글을 고치고 지울 수 있었다 */
   const canManage = isAdmin || (!!p.authorId && p.authorId === user?.id);
+  
+  // 13th-street: 이전화/다음화 — 같은 갤러리에서 목록 순서 그대로 (목록은 최신 글이 위)
+  const sid = p.secId ?? MAIN_SEC;
+  const seq = posts.filter(x => (x.secId ?? MAIN_SEC) === sid
+    && (isAdmin || x.visibility === 'public' || (x.visibility === 'member' && !!user)));
+  const at = seq.findIndex(x => x.id === p.id);
+  const nextPost = at > 0 ? seq[at - 1] : undefined;                               // 목록에서 바로 위 = 더 최근 글
+  const prevPost = at >= 0 && at < seq.length - 1 ? seq[at + 1] : undefined;      // 목록에서 바로 아래 = 더 예전 글
 
   // 파일 id/URL 모두 지원 — blobStore에서 로드 (새로고침에도 유지)
   // natural: 고정 프레임 안에서 확대 없이 원본 크기 그대로 가운데 (단일형 — 프레임보다 크면 축소만)
@@ -144,7 +158,7 @@ export default function BackupDetailPage() {
           </div>
                 ) : p.type === 'page' ? (
           /* 페이지형 (13th-street) — 한 장씩, 좌→우 넘김 */
-          <PageViewer imgs={imgs} />
+          <PageViewer key={p.id} imgs={imgs} />
         ) : p.type === 'vlist' ? (
           /* 단일(세로정렬) (v1.9) — 로그와 달리 이미지 사이 갭을 두고 세로로 나열, 클릭 확대 */
           <div style={{ display: 'grid', gap: 14 }}>
@@ -190,6 +204,14 @@ export default function BackupDetailPage() {
         )}
       </div>
 
+      {/* 13th-street: 이전화 / 다음화 */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, maxWidth: 960, margin: '14px auto 0' }}>
+        <button className="btn btn-dark" disabled={!prevPost} title={prevPost?.title}
+          onClick={() => prevPost && router.push(`/gallery/${prevPost.id}`)}>◁ 이전 화</button>
+        <button className="btn btn-dark" onClick={() => router.push(tt.href)}>목록</button>
+        <button className="btn btn-dark" disabled={!nextPost} title={nextPost?.title}
+          onClick={() => nextPost && router.push(`/gallery/${nextPost.id}`)}>다음 화 ▷</button>
+      </div>
       {/* 단일형·단일(세로) 확대 보기 — 뷰어와 같은 순번에서 시작, ‹ ›로 이어 넘김 */}
       {lbOpen && (p.type === 'single' || p.type === 'vlist') && p.images.length > 0 && (
         <Lightbox srcs={p.images} index={cur} onClose={() => setLbOpen(false)} />
