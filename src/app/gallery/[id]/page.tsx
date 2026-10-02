@@ -31,6 +31,27 @@ export default function BackupDetailPage() {
   const blocked = useHrefBlock(p && sectionHref('gallery', p.secId ?? MAIN_SEC));
   // 큰 글씨 — 추가 섹션이면 그 이름, 눌렀을 때도 그 목록으로 (v2.0 사용자 제보)
   const tt = useSectionTitle('gallery', p?.secId, 'GALLERY');
+  
+  // 13th-street: 글별 배경 밝게/어둡게 — 이 글을 보는 동안만 홈 배경 색을 덮어쓰고, 나가면 되돌린다
+  const bgMode = p?.bgMode;
+  useEffect(() => {
+    if (!bgMode) return;
+    const THEMES = {
+      dark: { '--bg-g1': '#2b3038', '--bg-g2': '#121418', '--page-title': '#eceef1', '--page-desc': '#9aa0a9' },
+      light: { '--bg-g1': '#f3f4f6', '--bg-g2': '#dcdfe4', '--page-title': '#1d2025', '--page-desc': '#5d636d' },
+    } as const;
+    const root = document.documentElement;
+    const prev: Record<string, string> = {};
+    Object.entries(THEMES[bgMode]).forEach(([k, v]) => {
+      prev[k] = root.style.getPropertyValue(k);
+      root.style.setProperty(k, v);
+    });
+    return () => {
+      Object.entries(prev).forEach(([k, v]) => {
+        if (v) root.style.setProperty(k, v); else root.style.removeProperty(k);
+      });
+    };
+  }, [bgMode]);
   if (blocked) return blocked;
   if (!loaded) return <section className="page" />;
   if (!p || (p.visibility === 'private' && !isAdmin) || (p.visibility === 'member' && !user)) {
