@@ -35,6 +35,7 @@ export interface MenuSettings {
   roadComment: MenuPerm;             // 로드뷰 댓글 권한
   backupView: 'gal' | 'list';        // 갤러리(그림백업) 기본 보기 (5.2)
     backupViewBySec?: Record<string, 'gal' | 'list'>;   // 13th-street: 갤러리별 기본 보기 (없으면 위 값을 따름)
+    backupOldestBySec?: Record<string, boolean>;   // 13th-street: 갤러리별 「등록순(오래된 글이 위)」 정렬
   /** 갤러리 글쓰기 권한 (v2.0 사용자 요청) — 섹션 id별 · 미지정은 'member'(로그인한 모든 회원) */
   galWrite?: Record<string, MenuPerm>;
   /** 갤러리 글쓰기를 특정 회원으로 좁히기 (v2.0) — 'member'일 때만 의미 · 비우면 모든 회원 */
