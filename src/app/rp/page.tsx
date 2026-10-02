@@ -159,31 +159,6 @@ export default function RpPage() {
     setFaceEdit(null);
     toast('프로필 사진 위치를 저장했습니다');
   };
-  
-  // 13th-street: 프로필 사진 위치 — 캐릭터에 저장해 두고(키: 원본은 'base', AU는 자관:AU) 모든 방에서 같이 쓴다
-  const faceKey = auCharKey ?? 'base';
-  const ownFaceCrop = (cid: string) => chars.find(x => x.id === cid)?.faceCrops?.[faceKey];
-  const faceCropOf = (c?: Character) => (c ? (ownFaceCrop(c.id) ?? c.thumbCrop) : undefined);
-  const [faceCtx, setFaceCtx] = useState<{ x: number; y: number; ch: Character } | null>(null);
-  const [faceEdit, setFaceEdit] = useState<{ charId: string; ref: string; crop?: CropValue } | null>(null);
-  useEffect(() => {
-    if (!faceCtx) return;
-    const close = () => setFaceCtx(null);
-    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setFaceCtx(null); };
-    window.addEventListener('click', close);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('keydown', key);
-    return () => {
-      window.removeEventListener('click', close);
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('keydown', key);
-    };
-  }, [faceCtx]);
-  const saveFaceCrop = (cid: string, c: CropValue) => {
-    setChars(chars.map(x => (x.id === cid ? { ...x, faceCrops: { ...x.faceCrops, [faceKey]: c } } : x)));
-    setFaceEdit(null);
-    toast('프로필 사진 위치를 저장했습니다');
-  };
   useEffect(() => { setSpeaker(speakChars[0]?.id ?? 'desc'); setPickOpen(false); }, [sel?.id, speakChars]);
   
   // 13th-street: 좌우 지정 — 캐릭터별로 고른 말풍선 위치를 기억해 두는 곳
