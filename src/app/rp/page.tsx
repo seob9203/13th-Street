@@ -12,18 +12,31 @@ import {
 import { Character, CHAR_SEED, Relation, REL_SEED, charGrant, charWithAu } from '@/lib/charStore';
 import { Modal, ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput, KTextarea, KSelect, KCheck } from '@/components/ui/Kit';
-import { CroppedBlobImg } from '@/components/ui/CropEditor';
+import { CroppedBlobImg, CropEditor, type CropValue } from '@/components/ui/CropEditor';
+import { useBlobUrl } from '@/lib/blobStore';   // 13th-street: 프로필 사진 위치 조정
+import { createPortal } from 'react-dom';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
 import { getSetting, setSetting, onSettingChange } from '@/lib/settingStore';   // 13th-street: 말머리 순서
 
-/** 캐릭터 얼굴 칩 (썸네일 or 데모 플레이스홀더) */
-function Face({ ch, className }: { ch?: Character; className: string }) {
+/** 캐릭터 얼굴 칩 (썸네일 or 데모 플레이스홀더) — 13th-street: 정사각형용 위치(crop)와 우클릭 지원 */
+function Face({ ch, className, crop, onContextMenu }: {
+  ch?: Character; className: string; crop?: CropValue; onContextMenu?: React.MouseEventHandler;
+}) {
   return (
-    <div className={`${className} ${!ch?.thumbId ? `ph ${ch?.thumbClass ?? ''}` : ''}`}>
-      {ch?.thumbId && <CroppedBlobImg fileRef={ch.thumbId} crop={ch.thumbCrop} />}
+    <div className={`${className} ${!ch?.thumbId ? `ph ${ch?.thumbClass ?? ''}` : ''}`} onContextMenu={onContextMenu}>
+      {ch?.thumbId && <CroppedBlobImg fileRef={ch.thumbId} crop={crop ?? ch.thumbCrop} />}
     </div>
   );
+}
+
+/** 프로필 사진 위치 편집 창 — 정사각형(1:1) */
+function FaceCropModal({ fileRef, crop, onClose, onApply }: {
+  fileRef: string; crop?: CropValue; onClose: () => void; onApply: (c: CropValue) => void;
+}) {
+  const url = useBlobUrl(fileRef);
+  if (!url) return null;
+  return <CropEditor open src={url} aspect="1:1" initial={crop} onClose={onClose} onApply={onApply} />;
 }
 
 const fmtHM = (iso: string) => {
@@ -47,7 +60,7 @@ export default function RpPage() {
   // 참여 회원 — 기반 자관이 있으면 그 자관 캐릭터의 권한자에서 자동으로 (v2.0 사용자 확정).
   // 계산해서 쓰므로 권한이 다른 사람에게 넘어가면 그 자관 기반 역극 전체에 바로 반영된다
   const memberIdsOf = (r: RpRoom) => rpMemberIds(r, rels, chars);
-  const [chars] = useLocalList<Character>('ohome.chars.v1', CHAR_SEED);
+   const [chars, setChars] = useLocalList<Character>('ohome.chars.v1', CHAR_SEED);
   const [rels] = useLocalList<Relation>('ohome.rels.v1', REL_SEED);
   const [selId, setSelId] = useState<string | null>(null);
   const [fStatus, setFStatus] = useState<'all' | 'ongoing' | 'done'>('ongoing'); // 우측 상태 필터 — 진행중이 기본
@@ -121,6 +134,56 @@ export default function RpPage() {
 
   const [speaker, setSpeaker] = useState<string>('');   // charId | 'desc' (플레이어 발화는 없앴다, v2.0)
   const [pickOpen, setPickOpen] = useState(false);
+  
+  // 13th-street: 프로필 사진 위치 — 캐릭터에 저장해 두고(키: 원본은 'base', AU는 자관:AU) 모든 방에서 같이 쓴다
+  const faceKey = auCharKey ?? 'base';
+  const ownFaceCrop = (cid: string) => chars.find(x => x.id === cid)?.faceCrops?.[faceKey];
+  const faceCropOf = (c?: Character) => (c ? (ownFaceCrop(c.id) ?? c.thumbCrop) : undefined);
+  const [faceCtx, setFaceCtx] = useState<{ x: number; y: number; ch: Character } | null>(null);
+  const [faceEdit, setFaceEdit] = useState<{ charId: string; ref: string; crop?: CropValue } | null>(null);
+  useEffect(() => {
+    if (!faceCtx) return;
+    const close = () => setFaceCtx(null);
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setFaceCtx(null); };
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', key);
+    };
+  }, [faceCtx]);
+  const saveFaceCrop = (cid: string, c: CropValue) => {
+    setChars(chars.map(x => (x.id === cid ? { ...x, faceCrops: { ...x.faceCrops, [faceKey]: c } } : x)));
+    setFaceEdit(null);
+    toast('프로필 사진 위치를 저장했습니다');
+  };
+  
+  // 13th-street: 프로필 사진 위치 — 캐릭터에 저장해 두고(키: 원본은 'base', AU는 자관:AU) 모든 방에서 같이 쓴다
+  const faceKey = auCharKey ?? 'base';
+  const ownFaceCrop = (cid: string) => chars.find(x => x.id === cid)?.faceCrops?.[faceKey];
+  const faceCropOf = (c?: Character) => (c ? (ownFaceCrop(c.id) ?? c.thumbCrop) : undefined);
+  const [faceCtx, setFaceCtx] = useState<{ x: number; y: number; ch: Character } | null>(null);
+  const [faceEdit, setFaceEdit] = useState<{ charId: string; ref: string; crop?: CropValue } | null>(null);
+  useEffect(() => {
+    if (!faceCtx) return;
+    const close = () => setFaceCtx(null);
+    const key = (e: KeyboardEvent) => { if (e.key === 'Escape') setFaceCtx(null); };
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', key);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', key);
+    };
+  }, [faceCtx]);
+  const saveFaceCrop = (cid: string, c: CropValue) => {
+    setChars(chars.map(x => (x.id === cid ? { ...x, faceCrops: { ...x.faceCrops, [faceKey]: c } } : x)));
+    setFaceEdit(null);
+    toast('프로필 사진 위치를 저장했습니다');
+  };
   useEffect(() => { setSpeaker(speakChars[0]?.id ?? 'desc'); setPickOpen(false); }, [sel?.id, speakChars]);
   
   // 13th-street: 좌우 지정 — 캐릭터별로 고른 말풍선 위치를 기억해 두는 곳
@@ -482,7 +545,12 @@ ${rows}
                   const rightSide = m.side ? m.side === 'right' : autoRight;   // 13th-street: 지정값 우선
                   return (
                     <div key={m.id} className={`msg ${rightSide ? 'me' : ''}`} style={{ ['--cc' as string]: hexRgb(ch?.color) }}>
-                      <Face ch={ch} className="face" />
+                      <Face ch={ch} crop={faceCropOf(ch)} className="face"
+                        onContextMenu={e => {
+                          if (!isAdmin || !ch?.thumbId) return;
+                          e.preventDefault();
+                          setFaceCtx({ x: e.clientX, y: e.clientY, ch });
+                        }} />
                       <div>
                         <div className="who">{name}</div>
                         <div className="bub">{m.text}</div>
@@ -508,13 +576,13 @@ ${rows}
                   <div className="char-pick" onClick={() => setPickOpen(o => !o)}>
                     {speaker === 'desc'
                       ? <div className="f" style={{ display: 'grid', placeItems: 'center', fontSize: 13, color: 'var(--sub)' }}>❝</div>
-                      : <Face ch={speakerChar} className="f" />}
+                      : <Face ch={speakerChar} crop={faceCropOf(speakerChar)} className="f" />}
                     <small>{speakerLabel} ▾</small>
                     {pickOpen && (
                       <div className="rp-pick-pop" onClick={e => e.stopPropagation()}>
                         {speakChars.map(c => (
                           <button key={c.id} onClick={() => { setSpeaker(c.id); setPickOpen(false); }}>
-                            <Face ch={c} className="f" />{c.name}
+                            <Face ch={c} crop={faceCropOf(c)} className="f" />
                           </button>
                         ))}
                         <button onClick={() => { setSpeaker('desc'); setPickOpen(false); }}>
@@ -716,6 +784,22 @@ ${rows}
           { label: 'END', kind: 'dark', onClick: () => { patchRoom({ status: 'done' }); setEndAsk(false); } },
           { label: 'CANCEL', kind: 'ghost', onClick: () => setEndAsk(false) },
         ]} />
+      {/* 13th-street: 프로필 사진 위치 조정 (관리자 우클릭) */}
+      {faceCtx && typeof document !== 'undefined' && createPortal(
+        <div className="ctx-menu on" style={{ left: faceCtx.x, top: faceCtx.y }} onClick={e => e.stopPropagation()}>
+          <div className="ctx-ttl">{faceCtx.ch.name}</div>
+          <button onClick={() => {
+            setFaceEdit({ charId: faceCtx.ch.id, ref: faceCtx.ch.thumbId!, crop: ownFaceCrop(faceCtx.ch.id) });
+            setFaceCtx(null);
+          }}>프로필 사진 위치 조정</button>
+        </div>,
+        document.body,
+      )}
+      {faceEdit && (
+        <FaceCropModal fileRef={faceEdit.ref} crop={faceEdit.crop}
+          onClose={() => setFaceEdit(null)}
+          onApply={c => saveFaceCrop(faceEdit.charId, c)} />
+      )}
       {del.element}
     </section>
   );
