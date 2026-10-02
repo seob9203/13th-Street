@@ -53,6 +53,10 @@ export function SectionList({ kind }: { kind: SectionKind }) {
   const viewOf = (id: string): 'gal' | 'list' => ms.backupViewBySec?.[id] ?? ms.backupView;
   const setViewOf = (id: string, v: 'gal' | 'list') =>
     patchMenu({ backupViewBySec: { ...ms.backupViewBySec, [id]: v } });
+    // 13th-street: 갤러리별 목록 정렬 (기본은 최신순, 켜면 등록순)
+  const oldestOf = (id: string) => !!ms.backupOldestBySec?.[id];
+  const setOldestOf = (id: string, v: boolean) =>
+    patchMenu({ backupOldestBySec: { ...ms.backupOldestBySec, [id]: v } });
 
   const patch = (id: string, name: string) => {
     const cur = items.map(s => (s.id === id ? { ...s, name } : s));
@@ -112,6 +116,14 @@ export function SectionList({ kind }: { kind: SectionKind }) {
             </div>
             <div className="cp-group" style={{ justifyContent: 'flex-end' }}>
                             {kind === 'gallery' && (
+                <div className="mini-seg" title="목록에서 글이 늘어서는 순서">
+                  <button className={!oldestOf(s.id) ? 'on' : ''}
+                    onClick={() => setOldestOf(s.id, false)}>최신순</button>
+                  <button className={oldestOf(s.id) ? 'on' : ''}
+                    onClick={() => setOldestOf(s.id, true)}>등록순</button>
+                </div>
+              )}
+              {kind === 'gallery' && (
                 <div className="mini-seg" title="이 갤러리를 열었을 때의 기본 보기">
                   <button className={viewOf(s.id) === 'gal' ? 'on' : ''}
                     onClick={() => setViewOf(s.id, 'gal')}>갤러리</button>
