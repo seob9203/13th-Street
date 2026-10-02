@@ -64,13 +64,16 @@ function BackupPageInner() {
     .filter(p => !q || p.title.includes(q) || p.category.includes(q)
       || (p.tags ?? []).some(t => t.toLowerCase().includes(q.toLowerCase())));   // 태그 검색 (v2.0)
     // 13th-street: 말머리 필터 — 등록된 말머리 순서대로, 등록 안 된 말머리가 쓰인 글이 있으면 뒤에 붙임
-  const visible = visibleBase.filter(p => fCat === 'all' || p.category === fCat);
+    // 13th-street: 갤러리별 정렬 — 등록순이면 오래된 글이 위로
+  const oldestFirst = !!menuSet.backupOldestBySec?.[sec.id];
+  const visible = (oldestFirst ? [...visibleBase].reverse() : visibleBase)
+    .filter(p => fCat === 'all' || p.category === fCat);
   const regCats = galleryCatsOf(boardSet, sec.id).map(c => c.label);
   const extraCats = Array.from(new Set(visibleBase.map(p => p.category).filter(c => c && !regCats.includes(c))));
   const catList = [...regCats, ...extraCats];
 
   // 편집모드 카드 드래그 정렬 (v1.9 — 갤러리 보기)
-  const sort = useCardSort(visible, next => setPosts(mergeOrder(posts, next)), editOn && isAdmin);
+    const sort = useCardSort(visible, next => setPosts(mergeOrder(posts, oldestFirst ? [...next].reverse() : next)), editOn && isAdmin);   // 13th-street: 등록순이면 되돌려서 저장
 
   /* 게시물이 쌓이면 페이지로 (v2.0 사용자 요청) — 보기에 따라 한 장 분량이 다르다.
      갤러리 보기는 한 줄에 3개라 12개(4줄), 리스트 보기는 글 목록과 같은 20개. */
