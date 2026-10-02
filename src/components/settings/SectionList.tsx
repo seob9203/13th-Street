@@ -48,6 +48,11 @@ export function SectionList({ kind }: { kind: SectionKind }) {
   const del = useConfirmDelete();
   const items = list(kind);
   const meta = SECTION_META[kind];
+  
+  // 13th-street: 갤러리별 기본 보기 (정해 둔 값이 없으면 전체 기본값을 따름)
+  const viewOf = (id: string): 'gal' | 'list' => ms.backupViewBySec?.[id] ?? ms.backupView;
+  const setViewOf = (id: string, v: 'gal' | 'list') =>
+    patchMenu({ backupViewBySec: { ...ms.backupViewBySec, [id]: v } });
 
   const patch = (id: string, name: string) => {
     const cur = items.map(s => (s.id === id ? { ...s, name } : s));
@@ -106,6 +111,14 @@ export function SectionList({ kind }: { kind: SectionKind }) {
                 )}
             </div>
             <div className="cp-group" style={{ justifyContent: 'flex-end' }}>
+                            {kind === 'gallery' && (
+                <div className="mini-seg" title="이 갤러리를 열었을 때의 기본 보기">
+                  <button className={viewOf(s.id) === 'gal' ? 'on' : ''}
+                    onClick={() => setViewOf(s.id, 'gal')}>갤러리</button>
+                  <button className={viewOf(s.id) === 'list' ? 'on' : ''}
+                    onClick={() => setViewOf(s.id, 'list')}>리스트</button>
+                </div>
+              )}
               {s.id !== MAIN_SEC && (
                 <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5 }}
                   onClick={() => del.ask(`${meta.label} 「${s.name}」를 삭제하시겠습니까?`,
