@@ -32,7 +32,7 @@ export interface BackupPost {
   secId?: string;
   id: string;
   title: string;
-  type: 'log' | 'single' | 'vlist';    // 로그형(틈 없이 세로) / 단일형(좌우 넘김) / 단일 세로정렬(갭 있는 세로, v1.9)
+  type: 'log' | 'single' | 'vlist' | 'page';    // 로그형(틈 없이 세로) / 단일형(좌우 넘김) / 단일 세로정렬(갭 있는 세로, v1.9)
   images: string[];          // 파일 id 또는 URL (비어 있으면 데모 ph — blobStore 참조)
   thumbCrop?: CropValue;     // 대표(첫) 이미지의 썸네일 크롭 (6.1)
   phList: string[];          // 데모 플레이스홀더
