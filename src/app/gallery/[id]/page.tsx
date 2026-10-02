@@ -32,13 +32,27 @@ export default function BackupDetailPage() {
   // 큰 글씨 — 추가 섹션이면 그 이름, 눌렀을 때도 그 목록으로 (v2.0 사용자 제보)
   const tt = useSectionTitle('gallery', p?.secId, 'GALLERY');
   
-  // 13th-street: 글별 배경 밝게/어둡게 — 이 글을 보는 동안만 홈 배경 색을 덮어쓰고, 나가면 되돌린다
+  // 13th-street: 글별 배경 밝게/어둡게 — 이 글을 보는 동안만 홈 색(배경·본문 칸·상단 메뉴바)을 덮어쓰고, 나가면 되돌린다
   const bgMode = p?.bgMode;
   useEffect(() => {
     if (!bgMode) return;
     const THEMES = {
-      dark: { '--bg-g1': '#2b3038', '--bg-g2': '#121418', '--page-title': '#eceef1', '--page-desc': '#9aa0a9' },
-      light: { '--bg-g1': '#f3f4f6', '--bg-g2': '#dcdfe4', '--page-title': '#1d2025', '--page-desc': '#5d636d' },
+      dark: {
+        '--bg-g1': '#2b3038', '--bg-g2': '#121418',
+        '--page-title': '#eceef1', '--page-desc': '#9aa0a9',
+        '--panel': 'rgba(30,33,39,.94)', '--panel-solid': '#1e2127',
+        '--ink': '#e8eaee', '--sub': '#aab0ba', '--faint': '#8b919b', '--line': '#343a44',
+        '--top-bg': 'rgba(20,22,27,.82)', '--top-fg': '#aab0ba', '--top-hv': '#ffffff', '--top-brand': '#f2f3f5',
+        '--dd-bg': 'rgba(28,31,37,.97)', '--dd-fg': '#c6cad1', '--dd-hv': 'rgba(255,255,255,.1)',
+        '--line-dark': 'rgba(255,255,255,.14)',
+      },
+      light: {
+        '--bg-g1': '#f3f4f6', '--bg-g2': '#dcdfe4',
+        '--page-title': '#1d2025', '--page-desc': '#5d636d',
+        '--top-bg': 'rgba(250,250,251,.88)', '--top-fg': '#5d636d', '--top-hv': '#1d2025', '--top-brand': '#1d2025',
+        '--dd-bg': 'rgba(252,252,253,.98)', '--dd-fg': '#3a3f47', '--dd-hv': 'rgba(0,0,0,.06)',
+        '--line-dark': 'rgba(0,0,0,.1)',
+      },
     } as const;
     const root = document.documentElement;
     const prev: Record<string, string> = {};
@@ -46,7 +60,16 @@ export default function BackupDetailPage() {
       prev[k] = root.style.getPropertyValue(k);
       root.style.setProperty(k, v);
     });
+    // 색이 코드에 고정된 부분(설명 글씨·흰 버튼)은 변수로 못 바꾸니 규칙을 잠깐 덧붙인다
+    const css = document.createElement('style');
+    css.textContent = bgMode === 'dark'
+      ? '.post-body,.post-body p,.post-body li{color:#d5d9df}'
+        + '.btn-ghost{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.18);color:#c6cad1}'
+        + '.btn-ghost:hover{border-color:rgba(255,255,255,.4);color:#fff}'
+      : '';
+    document.head.appendChild(css);
     return () => {
+      css.remove();
       Object.entries(prev).forEach(([k, v]) => {
         if (v) root.style.setProperty(k, v); else root.style.removeProperty(k);
       });
