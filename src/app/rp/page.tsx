@@ -273,7 +273,19 @@ export default function RpPage() {
       const ch = rpChars.find(c => c.id === m.charId);
       const name = ch?.name ?? '';
       const color = ch?.color ?? '#5d636d';
-      return `<div style="margin:10px 0;line-height:1.7"><b style="color:${color};letter-spacing:.05em">${esc(name)}</b> — ${esc(m.text)}</div>`;
+      // 13th-street: 좌우 지정 — 화면과 같은 규칙 (지정값 우선, 없으면 내보내는 사람 기준 자동)
+      const autoRight = ch
+        ? (!!charGrant(ch, user?.id) || (!!ch.own && isAdmin))
+        : (!!m.charOwn && isAdmin);
+      const right = m.side ? m.side === 'right' : autoRight;
+      const rgb = hexRgb(color);
+      const radius = right ? '14px 4px 14px 14px' : '4px 14px 14px 14px';
+      return `<div style="display:flex;justify-content:${right ? 'flex-end' : 'flex-start'};margin:10px 0">
+<div style="max-width:70%;text-align:${right ? 'right' : 'left'}">
+<div style="font-size:12px;font-weight:bold;color:${color};letter-spacing:.05em;margin-bottom:4px">${esc(name)}</div>
+<div style="display:inline-block;text-align:left;background:rgba(${rgb},.12);border:1px solid rgba(${rgb},.35);border-radius:${radius};padding:9px 13px;line-height:1.7">${esc(m.text)}</div>
+</div>
+</div>`;
     }).join('\n');
     const html = `<div style="font-family:sans-serif;max-width:720px;margin:0 auto">
 <h2 style="letter-spacing:.08em">${esc(sel.title)}</h2>
