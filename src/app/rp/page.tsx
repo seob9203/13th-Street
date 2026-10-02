@@ -68,7 +68,27 @@ export default function RpPage() {
   const myRooms = useMemo(() => allMine.filter(r =>
     (fStatus === 'all' || r.status === fStatus) && (fTag === 'all' || r.tag === fTag)), [allMine, fStatus, fTag]);   // 13th-street: 말머리 필터
   // 13th-street: 말머리 — 내 방들에 쓰인 말머리 목록
-  const tagList = Array.from(new Set(allMine.map(r => r.tag).filter(Boolean) as string[]));
+  // 13th-street: 말머리 순서 — 이 브라우저에 저장
+  const TAG_ORDER_KEY = 'ohome.rptagorder.v1';
+  const [tagOrder, setTagOrder] = useState<string[]>([]);
+  const [tagEdit, setTagEdit] = useState(false);
+  useEffect(() => {
+    try { setTagOrder(JSON.parse(localStorage.getItem(TAG_ORDER_KEY) ?? '[]') as string[]); } catch { /* 무시 */ }
+  }, []);
+  const rawTags = Array.from(new Set(allMine.map(r => r.tag).filter(Boolean) as string[]));
+  // 저장된 순서대로 줄 세우고, 순서가 없는 새 말머리는 맨 뒤에
+  const tagList = [...rawTags].sort((a, b) => {
+    const ia = tagOrder.indexOf(a), ib = tagOrder.indexOf(b);
+    return (ia < 0 ? 9999 : ia) - (ib < 0 ? 9999 : ib);
+  });
+  const moveTag = (t: string, dir: -1 | 1) => {
+    const i = tagList.indexOf(t), j = i + dir;
+    if (i < 0 || j < 0 || j >= tagList.length) return;
+    const next = [...tagList];
+    [next[i], next[j]] = [next[j], next[i]];
+    setTagOrder(next);
+    try { localStorage.setItem(TAG_ORDER_KEY, JSON.stringify(next)); } catch { /* 무시 */ }
+  };
   const sel = myRooms.find(r => r.id === selId) ?? myRooms[0];
   const cntS = (s: 'all' | 'ongoing' | 'done') =>
     allMine.filter(r => s === 'all' || r.status === s).length;
@@ -541,14 +561,27 @@ ${rows}
           <div className={`tag ${fStatus === 'done' ? 'on' : ''}`} onClick={() => setFStatus('done')}>
             완결 <small>{cntS('done')}</small>
           </div>
-                    {/* 13th-street: 말머리 필터 */}
+                   {/* 13th-street: 말머리 필터 (ORDER로 순서 편집) */}
           {tagList.length > 0 && (
             <>
-              <h4 style={{ marginTop: 14 }}>말머리</h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 }}>
+                <h4 style={{ margin: 0 }}>말머리</h4>
+                <button type="button" className="btn btn-ghost" style={{ padding: '2px 8px', fontSize: 10 }}
+                  onClick={() => setTagEdit(e => !e)}>{tagEdit ? 'DONE' : 'ORDER'}</button>
+              </div>
               <div className={`tag ${fTag === 'all' ? 'on' : ''}`} onClick={() => setFTag('all')}>전체</div>
-              {tagList.map(t => (
-                <div key={t} className={`tag ${fTag === t ? 'on' : ''}`} onClick={() => setFTag(t)}>
-                  {t} <small>{allMine.filter(r => r.tag === t).length}</small>
+              {tagList.map((t, i) => (
+                <div key={t} className={`tag ${fTag === t ? 'on' : ''}`} onClick={() => setFTag(t)}
+                  style={tagEdit ? { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } : undefined}>
+                  <span>{t} <small>{allMine.filter(r => r.tag === t).length}</small></span>
+                  {tagEdit && (
+                    <span style={{ display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
+                      <button type="button" disabled={i === 0} onClick={() => moveTag(t, -1)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', opacity: i === 0 ? 0.25 : 1 }}>▲</button>
+                      <button type="button" disabled={i === tagList.length - 1} onClick={() => moveTag(t, 1)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 4px', opacity: i === tagList.length - 1 ? 0.25 : 1 }}>▼</button>
+                    </span>
+                  )}
                 </div>
               ))}
             </>
