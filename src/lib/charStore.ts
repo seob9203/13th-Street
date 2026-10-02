@@ -43,6 +43,8 @@ export interface Character {
   thumbClass: string;    // 데모 플레이스홀더 클래스
   thumbId?: string;      // 리스트 썸네일 (IndexedDB, 3:4 크롭)
   thumbCrop?: import("@/components/ui/CropEditor").CropValue;
+    /** 역극 등 정사각형(1:1) 프로필 칸의 얼굴 위치 (13th-street) — 키: 'base' 또는 `${자관id}:${AUid}` */
+  faceCrops?: Record<string, import("@/components/ui/CropEditor").CropValue>;
   /** 상세 페이지 중앙 아트의 위치 (v2.0) — 리스트 썸네일과 보이는 크기·비율이 달라
    *  같은 크롭을 쓰면 원하는 부분이 안 나온다. 따로 잡으면 상세에서는 이 값을 쓴다. */
   artCrop?: import("@/components/ui/CropEditor").CropValue;
