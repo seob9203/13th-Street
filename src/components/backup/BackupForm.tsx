@@ -58,7 +58,7 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
   // 수정 주소에는 ?s=가 없으므로 고치는 글 자신의 소속(secId)에서 읽는다
   const tt = useSectionTitle('gallery', initial ? (initial.secId ?? MAIN_SEC) : sec.id, isNew ? 'WRITE' : 'EDIT');
   const [title, setTitle] = useState(initial?.title ?? '');
-  const [type, setType] = useState<'log' | 'single' | 'vlist'>(initial?.type ?? 'log');
+    const [type, setType] = useState<BackupPost['type']>(initial?.type ?? 'log');   // 13th-street: 페이지 유형
   const [files, setFiles] = useState<UpFile[]>(() =>
     (initial?.images ?? []).map((ref, i) => ({
       id: newId(), name: `이미지 ${i + 1}`, ref, original: true,
@@ -164,13 +164,16 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
           <div className="form-row">
             <label className="k-label" style={{ width: 60 }}>유형</label>
             {/* 모바일에서는 설명(.rd-desc)을 숨겨 한 줄 유지 — 두 줄로 넘어가면 안 예쁨 (v1.9 사용자 확정) */}
-            <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
+                        <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
               <KRadio name="wtype" value="log" current={type} onChange={v => setType(v as 'log')}
                 label={<span>로그 <span className="rd-desc">— 웹툰처럼 세로 스크롤</span></span>} />
               <KRadio name="wtype" value="single" current={type} onChange={v => setType(v as 'single')}
                 label={<span>단일 <span className="rd-desc">— 큰 이미지 + 좌우 넘김</span></span>} />
               <KRadio name="wtype" value="vlist" current={type} onChange={v => setType(v as 'vlist')}
                 label={<span>단일(세로) <span className="rd-desc">— 이미지 사이 갭을 두고 세로로 나열</span></span>} />
+                            {/* 13th-street: 페이지 유형 */}
+              <KRadio name="wtype" value="page" current={type} onChange={v => setType(v as BackupPost['type'])}
+                label={<span>페이지 <span className="rd-desc">— 화면 가득, 한 장씩 좌우 넘김</span></span>} />
             </div>
           </div>
           <label className="k-label">이미지</label>
