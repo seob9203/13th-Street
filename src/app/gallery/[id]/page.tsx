@@ -1,6 +1,6 @@
 'use client';
 // 그림백업 상세 (4.11) — 로그형: 세로 스크롤 뷰어 / 단일형: 큰 이미지 + 썸네일 스트립 + 좌우 넘김
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useHrefBlock } from '@/components/shell/MenuGuard';
 import { sectionHref, MAIN_SEC, useSectionTitle } from '@/lib/sectionStore';
@@ -98,6 +98,9 @@ export default function BackupDetailPage() {
           <div style={{ borderRadius: 10, overflow: 'hidden' }}>
             {imgs.map((im, i) => <Img key={i} im={im} />)}
           </div>
+                ) : p.type === 'page' ? (
+          /* 페이지형 (13th-street) — 한 장씩, 좌→우 넘김 */
+          <PageViewer imgs={imgs} />
         ) : p.type === 'vlist' ? (
           /* 단일(세로정렬) (v1.9) — 로그와 달리 이미지 사이 갭을 두고 세로로 나열, 클릭 확대 */
           <div style={{ display: 'grid', gap: 14 }}>
@@ -155,5 +158,48 @@ export default function BackupDetailPage() {
           { label: 'CANCEL', kind: 'ghost', onClick: () => setDelAsk(false) },
         ]} />
     </section>
+  );
+}
+
+/** 페이지형 뷰어 (13th-street) — 만화책처럼 한 장씩 보고 좌→우로 넘긴다.
+ *  이미지의 오른쪽 절반을 누르면 다음 장, 왼쪽 절반은 이전 장. 키보드 ← → 도 된다. */
+function PageViewer({ imgs }: { imgs: { url?: string; ph?: string }[] }) {
+  const [n, setN] = useState(0);
+  const total = imgs.length;
+  const go = (d: number) => setN(c => Math.min(total - 1, Math.max(0, c + d)));
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (e.key === 'ArrowRight') go(1);
+      else if (e.key === 'ArrowLeft') go(-1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [total]);
+  const im = imgs[n];
+  const u = useBlobUrl(im?.url);
+  if (!im) return null;
+  // eslint-disable-next-line @next/next/no-img-element
+  const pic = u ? <img src={u} alt="" style={{ maxWidth: '100%', height: 'auto', display: 'block', margin: '0 auto' }} /> : (
+    <div className={`ph ${im.ph ?? ''}`} style={{ aspectRatio: '16/10' }}><span>IMAGE</span></div>
+  );
+  const btn = { padding: '4px 16px' } as const;
+  return (
+    <div>
+      <div style={{ borderRadius: 10, overflow: 'hidden', cursor: 'pointer', userSelect: 'none' }}
+        onClick={e => {
+          const r = e.currentTarget.getBoundingClientRect();
+          go(e.clientX - r.left < r.width / 2 ? -1 : 1);
+        }}>
+        {pic}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 14 }}>
+        <button className="btn btn-ghost" style={btn} disabled={n === 0} onClick={() => go(-1)}>◁</button>
+        <small style={{ letterSpacing: '.1em' }}>{n + 1} / {total}</small>
+        <button className="btn btn-ghost" style={btn} disabled={n === total - 1} onClick={() => go(1)}>▷</button>
+      </div>
+    </div>
   );
 }
