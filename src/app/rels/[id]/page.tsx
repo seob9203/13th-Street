@@ -1294,7 +1294,7 @@ export default function RelDetailPage() {
         )}
         {!au?.hideLog && (
         <div className="panel widget" style={{ margin: 0, ...(au?.hideRp ? { gridColumn: '1/-1' } : null) }}>
-          <h4>로그 <span className="more" onClick={() => router.push('/trpg')}>더보기 ›</span></h4>
+                    <h4>TRPG 로그 <span className="more" onClick={() => router.push('/trpg')}>더보기 ›</span></h4>
           {relLogs.length > 0 ? relLogs.map(l => (
             <div key={l.id} className="dday-row" style={{ cursor: 'var(--cur-pointer,pointer)' }} onClick={() => router.push(`/trpg/${l.id}`)}>
               {/* 번호 없이 제목만 — 연동 리스트에서는 순번이 의미가 없다 (사용자 확정) */}
@@ -1308,9 +1308,9 @@ export default function RelDetailPage() {
       )}
 
       {/* 13th-street: 갤러리 글 연동 */}
-      {(relGalleryPosts.length > 0 || isAdmin) && (
+            {!au?.hideGallery && (relGalleryPosts.length > 0 || isAdmin) && (
         <div className="panel widget" style={{ margin: '16px auto 0', maxWidth: 1010 }}>
-          <h4>갤러리</h4>
+                    <h4>로그</h4>
           {relGalleryPosts.length > 0 ? relGalleryPosts.map(p => (
             <div key={p.id} className="dday-row" style={{ cursor: 'var(--cur-pointer,pointer)' }}
               onClick={() => router.push(`/gallery/${p.id}`)}>
@@ -1478,11 +1478,13 @@ export default function RelDetailPage() {
                 )}
               </div>
               {/* 상세 하단의 연동 리스트 숨김 (v2.0 사용자 요청) — 이 AU를 보는 동안만 적용 */}
-              <div style={{ display: 'flex', gap: 16 }}>
+                            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                 <KCheck label={<span style={{ fontSize: 11.5 }}>역극 리스트 숨김</span>} checked={!!a.hideRp}
                   onChange={v => updateRel({ aus: rel.aus.map(x => (x.id === a.id ? { ...x, hideRp: v || undefined } : x)) })} />
-                <KCheck label={<span style={{ fontSize: 11.5 }}>로그 리스트 숨김</span>} checked={!!a.hideLog}
+                <KCheck label={<span style={{ fontSize: 11.5 }}>TRPG 로그 리스트 숨김</span>} checked={!!a.hideLog}
                   onChange={v => updateRel({ aus: rel.aus.map(x => (x.id === a.id ? { ...x, hideLog: v || undefined } : x)) })} />
+                <KCheck label={<span style={{ fontSize: 11.5 }}>로그 리스트 숨김</span>} checked={!!a.hideGallery}
+                  onChange={v => updateRel({ aus: rel.aus.map(x => (x.id === a.id ? { ...x, hideGallery: v || undefined } : x)) })} />
               </div>
             </div>
           ))}
