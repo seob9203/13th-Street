@@ -31,6 +31,7 @@ import { CroppedBlobImg, CropEditor, type CropValue } from '@/components/ui/Crop
 import { Lightbox } from '@/components/ui/Lightbox';
 import { useToast } from '@/components/ui/Toast';
 import { PageTitle } from '@/components/ui/PageText';
+import { sectionHref, MAIN_SEC } from '@/lib/sectionStore';   // 13th-street: 로그 더보기 이동
 
 /** 전신 이미지 — 비율 유지, 하단 정렬, 크기 %는 자관 수정 미리보기에서 지정 (v1.9) */
 // 전신 그림자는 「그림자 직접 지정」의 색·강도를 따른다 (v2.0 사용자 요청) — 자관명 그림자와 같은 설정
@@ -1310,7 +1311,7 @@ export default function RelDetailPage() {
       {/* 13th-street: 갤러리 글 연동 */}
             {!au?.hideGallery && (relGalleryPosts.length > 0 || isAdmin) && (
         <div className="panel widget" style={{ margin: '16px auto 0', maxWidth: 1010 }}>
-                    <h4>로그</h4>
+                  <h4>로그 <span className="more" onClick={() => router.push(sectionHref('gallery', relGalleryPosts[0]?.secId ?? MAIN_SEC))}>더보기 ›</span></h4>
           {relGalleryPosts.length > 0 ? relGalleryPosts.map(p => (
             <div key={p.id} className="dday-row" style={{ cursor: 'var(--cur-pointer,pointer)' }}
               onClick={() => router.push(`/gallery/${p.id}`)}>
