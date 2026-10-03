@@ -18,7 +18,7 @@ import {
 import { RelQuestionSet, RELQ_SEED, RELQ_KEY, CP_LABEL } from '@/lib/relqStore';
 import { putBlob } from '@/lib/blobStore';
 import { GrantsEditor } from '@/components/chars/GrantsEditor';
-import { TrpgLog, TRPG_SEED } from '@/lib/galleryStore';
+import { TrpgLog, TRPG_SEED, BackupPost, BACKUP_SEED } from '@/lib/galleryStore';
 import { RpRoom, RP_SEED } from '@/lib/rpStore';
 import { useFonts } from '@/lib/fontStore';
 import { Tip, KInput, KTextarea, KSelect, KRadio, KCheck } from '@/components/ui/Kit';
@@ -245,6 +245,7 @@ export default function RelDetailPage() {
   const [chars, setChars, charsLoaded] = useLocalList<Character>('ohome.chars.v1', CHAR_SEED);
   const [logs] = useLocalList<TrpgLog>('ohome.trpg.v1', TRPG_SEED);
   const [rooms] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
+    const [gposts] = useLocalList<BackupPost>('ohome.backup.v1', BACKUP_SEED);   // 13th-street: 갤러리 글 연동
   const [tab, setTab] = useState<'tl' | 'qa'>('tl');
   const [auId, setAuId] = useState('base');
   const [oneMode, setOneMode] = useState<boolean | null>(null);
@@ -487,6 +488,11 @@ export default function RelDetailPage() {
   const relRooms = useMemo(() => rooms.filter(rm => rm.relId === rel?.id
     && ((user && rm.memberIds.includes(user.id)) || (rm.status === 'done' && rm.isPublic))),
     [rooms, rel, user]);
+  
+  // 13th-street: 이 자관에 연동된 갤러리 글 — 오래된 글이 위 (화 순서대로), 볼 수 없는 글은 제외
+  const relGalleryPosts = useMemo(() => gposts
+    .filter(p => p.relId === rel?.id && (isAdmin || p.visibility === 'public' || (p.visibility === 'member' && !!user)))
+    .sort((a, b) => a.date.localeCompare(b.date)), [gposts, rel, isAdmin, user]);
 
   if (!loaded) return <section className="page" />;
   if (!rel || (rel.visibility === 'private' && !isAdmin) || (rel.visibility === 'member' && !user)) {
@@ -1301,6 +1307,19 @@ export default function RelDetailPage() {
       </div>
       )}
 
+      {/* 13th-street: 갤러리 글 연동 */}
+      {(relGalleryPosts.length > 0 || isAdmin) && (
+        <div className="panel widget" style={{ margin: '16px auto 0', maxWidth: 1010 }}>
+          <h4>갤러리</h4>
+          {relGalleryPosts.length > 0 ? relGalleryPosts.map(p => (
+            <div key={p.id} className="dday-row" style={{ cursor: 'var(--cur-pointer,pointer)' }}
+              onClick={() => router.push(`/gallery/${p.id}`)}>
+              <span>{p.title}</span>
+              <b style={{ fontSize: 11, color: 'var(--faint)' }}>{p.date.slice(0, 10).replace(/-/g, '.')}</b>
+            </div>
+          )) : <p className="hint" style={{ margin: 0 }}>갤러리 글을 쓸 때 「자관 연동」을 고르면 여기에 표시됩니다</p>}
+        </div>
+      )}
       {/* ---------- 멤버 추가 모달 ---------- */}
       <Modal open={memberOpen} onClose={() => setMemberOpen(false)} small title="멤버 추가"
         dirty={!!(mCharId || mName || mQuote)}
