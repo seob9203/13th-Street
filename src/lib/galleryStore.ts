@@ -47,6 +47,7 @@ export interface BackupPost {
   /** 태그 (v2.0 사용자 요청) — 목록·카드에 나열되고 검색에 걸린다 */
   tags?: string[];
     bgMode?: 'light' | 'dark';   // 13th-street: 글 보는 화면 배경 (없으면 홈 테마 그대로)
+    relId?: string;   // 13th-street: 연동할 자관 (없으면 연동 안 함)
 }
 
 export const BACKUP_SEED: BackupPost[] = [];
