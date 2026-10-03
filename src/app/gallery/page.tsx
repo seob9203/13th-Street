@@ -2,11 +2,12 @@
 // EditableDesc 주입
 // 그림백업게시판 (4.11) — 갤러리/리스트 토글 · 로그/단일 뱃지 · 접기 썸네일 블러
 import React, { Suspense, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
 import { useSectionParam, filterSection, sectionSetter, secQuery } from '@/lib/sectionStore';
 import { useLocalList, fmtDate } from '@/lib/postStore';
 import { BackupPost, BACKUP_SEED } from '@/lib/galleryStore';
+import { Relation, REL_SEED } from '@/lib/charStore';   // 13th-street: 자관 연동 필터
 import { SearchBar, Pager } from '@/components/ui/Kit';
 import { createPortal } from 'react-dom';
 import { CroppedBlobImg, CropEditor, CropValue } from '@/components/ui/CropEditor';
@@ -42,6 +43,10 @@ function BackupPageInner() {
     // 13th-street: 말머리 필터 — 'all'이면 전체
   const { st: boardSet } = useBoardSettings();
   const [fCat, setFCat] = useState('all');
+    // 13th-street: 자관 연동 필터 — 주소의 ?rel=자관id 가 있으면 그 자관에 연동된 글만
+  const relFilter = useSearchParams().get('rel');
+  const [relsAll] = useLocalList<Relation>('ohome.rels.v1', REL_SEED);
+  const relName = relsAll.find(r => r.id === relFilter)?.name;
   const [unveiled, setUnveiled] = useState<Record<string, boolean>>({});
   /* 우클릭 → 썸네일 수정 (v2.0 사용자 요청) — 리스트에서 바로 대표 이미지 크롭을 고친다.
      수정 화면까지 안 가도 되게. 관리자와 글쓴이만, 이미지가 있는 글만 */
@@ -63,7 +68,7 @@ function BackupPageInner() {
     setCtx({ x: e.clientX, y: e.clientY, post: p });
   };
 
-  const visibleBase = posts
+    const visibleBase = posts.filter(p => !relFilter || p.relId === relFilter)   // 13th-street: 자관 연동 필터
     .filter(p => isAdmin || p.visibility === 'public' || (p.visibility === 'member' && user))
     .filter(p => !q || p.title.includes(q) || p.category.includes(q)
       || (p.tags ?? []).some(t => t.toLowerCase().includes(q.toLowerCase())));   // 태그 검색 (v2.0)
@@ -128,6 +133,15 @@ function BackupPageInner() {
         </div>
       </div>
 
+      {/* 13th-street: 자관 연동 필터 표시 */}
+      {relFilter && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px' }}>
+          <span className="pill dark">자관 연동 · {relName ?? '선택한 자관'}</span>
+          <button type="button" className="btn btn-ghost"
+            style={{ padding: '0 12px', height: 28, fontSize: 11, borderRadius: 999 }}
+            onClick={() => router.push('/gallery' + secQuery('gallery', sec.id))}>전체 보기 ✕</button>
+        </div>
+      )}
       {/* 13th-street: 말머리 알약 필터 */}
       {catList.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '0 0 14px' }}>
