@@ -10,7 +10,7 @@ import { useMenuSettings, canGalleryWrite } from '@/lib/menuStore';
 import { BackupPost, BACKUP_SEED } from '@/lib/galleryStore';
 import { useBoardSettings, DEFAULT_GALLERY_CATS, galleryCatsOf } from '@/lib/boardStore';
 import { useConfirmDelete } from '@/components/ui/Modal';
-import { Visibility } from '@/lib/charStore';
+import { Visibility, Relation, REL_SEED } from '@/lib/charStore';
 import { KInput, KSelect, KRadio, KCheck, KDate } from '@/components/ui/Kit';
 import { RichEditor } from '@/components/ui/RichEditor';
 import { DragList } from '@/components/ui/DragList';
@@ -90,6 +90,9 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
   const [foldType, setFoldType] = useState<FoldType | 'none'>(initial?.fold?.type ?? 'none');
   const [foldLabel, setFoldLabel] = useState(initial?.fold?.label ?? '');
     const [bgMode, setBgMode] = useState<'' | 'light' | 'dark'>(initial?.bgMode ?? '');   // 13th-street: 글 배경
+    // 13th-street: 자관 연동
+  const [rels] = useLocalList<Relation>('ohome.rels.v1', REL_SEED);
+  const [relId, setRelId] = useState(initial?.relId ?? '');
   const [cropFor, setCropFor] = useState<UpFile | null>(null);
 
   if (!user) {
@@ -134,6 +137,7 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
         desc, category, tags: parseTags(tagsText), madeDate: madeDate || undefined,
         date: new Date().toISOString(), author: user.nickname, authorId: user.id,
                 bgMode: bgMode || undefined,   // 13th-street: 글 배경
+                relId: relId || undefined,   // 13th-street: 자관 연동
         visibility,
         fold: foldType === 'none' ? null : { type: foldType, label: foldType === 'custom' ? foldLabel : undefined },
       };
@@ -147,6 +151,7 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
         thumbCrop: files[0]?.crop,
         desc, category, tags: parseTags(tagsText), madeDate: madeDate || undefined, visibility,
                 bgMode: bgMode || undefined,   // 13th-street: 글 배경
+                relId: relId || undefined,   // 13th-street: 자관 연동
         fold: foldType === 'none' ? null : { type: foldType, label: foldType === 'custom' ? foldLabel : undefined },
       } : x));
       toast('저장되었습니다');
@@ -236,6 +241,15 @@ export function BackupForm({ initial }: { initial: BackupPost | null }) {
               {/* 말머리 목록은 환경설정 > 게시판 관리에서 관리 (v2.0 — 예전에는 코드에 박혀 있었다) */}
               <KSelect minWidth={120} value={category} onChange={setCategory}
                 options={galleryCats.map(c => ({ value: c.label, label: c.label }))} />
+            </div>
+            {/* 13th-street: 자관 연동 — 연동하면 그 자관 상세 화면 아래에 이 글이 표시됨 */}
+            <div className="form-row">
+              <label className="k-label" style={{ width: 70 }}>자관 연동</label>
+              <KSelect minWidth={150} value={relId} onChange={setRelId}
+                options={[
+                  { value: '', label: '연동 안 함' },
+                  ...rels.map(r => ({ value: r.id, label: r.name })),
+                ]} />
             </div>
             {/* 13th-street: 글 보는 화면 배경 */}
             <div className="form-row">
