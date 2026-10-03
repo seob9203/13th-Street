@@ -350,6 +350,7 @@ export interface RelAu {
    *  원본(base)의 설정은 aus의 base 항목에 담긴다 */
   hideRp?: boolean;
   hideLog?: boolean;
+    hideGallery?: boolean;   // 13th-street: 상세 하단의 갤러리(로그) 연동 리스트 숨김
 }
 
 export interface Relation {
