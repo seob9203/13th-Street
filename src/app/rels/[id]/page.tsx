@@ -1311,7 +1311,10 @@ export default function RelDetailPage() {
       {/* 13th-street: 갤러리 글 연동 */}
             {!au?.hideGallery && (relGalleryPosts.length > 0 || isAdmin) && (
         <div className="panel widget" style={{ margin: '16px auto 0', maxWidth: 1010 }}>
-                  <h4>로그 <span className="more" onClick={() => router.push(sectionHref('gallery', relGalleryPosts[0]?.secId ?? MAIN_SEC))}>더보기 ›</span></h4>
+                            <h4>로그 <span className="more" onClick={() => {
+            const base = sectionHref('gallery', relGalleryPosts[0]?.secId ?? MAIN_SEC);
+            router.push(`${base}${base.includes('?') ? '&' : '?'}rel=${rel.id}`);
+          }}>더보기 ›</span></h4>
           {relGalleryPosts.length > 0 ? relGalleryPosts.map(p => (
             <div key={p.id} className="dday-row" style={{ cursor: 'var(--cur-pointer,pointer)' }}
               onClick={() => router.push(`/gallery/${p.id}`)}>
