@@ -13,7 +13,8 @@ import { Character, CHAR_SEED, Relation, REL_SEED, charGrant, charWithAu } from 
 import { Modal, ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput, KTextarea, KSelect, KCheck } from '@/components/ui/Kit';
 import { CroppedBlobImg, CropEditor, type CropValue } from '@/components/ui/CropEditor';
-import { useBlobUrl } from '@/lib/blobStore';   // 13th-street: 프로필 사진 위치 조정
+import { useBlobUrl, putBlob } from '@/lib/blobStore';   // 13th-street: 프로필 사진 위치 조정
+import { ColorField } from '@/components/ui/ColorField';   // 13th-street: 역극 전용 프로필
 import { createPortal } from 'react-dom';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
@@ -125,17 +126,73 @@ function RpPageInner() {
      캐릭터의 AU 프로필은 자관마다 따로 갖는 값이라 자관 id가 앞에 붙는다. 처음에 AU id만
      넘겨서 프로필을 못 찾고 조용히 원본으로 떨어졌다 — 자관 상세가 쓰는 방식과 맞췄다. */
   const auCharKey = sel?.relId && sel?.auId && sel.auId !== 'base' ? `${sel.relId}:${sel.auId}` : null;
-  const rpChars = useMemo(
+   const rpCharsBase = useMemo(
     () => (auCharKey ? chars.map(c => charWithAu(c, auCharKey)) : chars),
     [chars, auCharKey],
   );
-  const speakChars = useMemo(() => {
-    if (rel) {
-      const members = rel.members.map(m => rpChars.find(c => c.id === m.charId)).filter(Boolean) as Character[];
-      return isAdmin ? members : members.filter(c => !!charGrant(c, user?.id));
+
+  /* 13th-street: 역극 전용 프로필 — 캐릭터·AU에 등록하지 않고 이 역극 탭에서만 쓰는 프로필.
+     사이트 설정에 저장(관리자만 만들 수 있고, 참여자는 모두 골라 쓴다). 캐릭터처럼 다룰 수 있게
+     'rpp:' 로 시작하는 id의 가짜 캐릭터로 바꿔서 기존 말풍선·발화자 선택에 그대로 끼워 넣는다 */
+  type RpProfile = { id: string; secId: string; name: string; sub: string; color: string; imgId?: string; crop?: CropValue };
+  const PROF_KEY = 'ohome.rpprofiles.v1';
+  const PROF_PREFIX = 'rpp:';
+  const isProf = (id?: string) => !!id && id.startsWith(PROF_PREFIX);
+  const [profAll, setProfAll] = useState<RpProfile[]>([]);
+  useEffect(() => {
+    const load = () => { const v = getSetting<RpProfile[]>(PROF_KEY, []); setProfAll(Array.isArray(v) ? v : []); };
+    load();
+    return onSettingChange(k => { if (k === PROF_KEY) load(); });
+  }, []);
+  const saveProfiles = (next: RpProfile[]) => { setProfAll(next); setSetting(PROF_KEY, next); };
+  const profToChar = (p: { id?: string; name: string; sub: string; color: string; imgId?: string; crop?: CropValue }): Character => ({
+    id: PROF_PREFIX + (p.id ?? ''), name: p.name, sub: p.sub, color: p.color, colors: [], specs: [], tabs: [],
+    basicHtml: '', visibility: 'public', thumbClass: '', thumbId: p.imgId, thumbCrop: p.crop, own: true,
+  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const profChars = useMemo(() => profAll.map(profToChar), [profAll]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const secProfChars = useMemo(() => profAll.filter(p => p.secId === sec.id).map(profToChar), [profAll, sec.id]);
+  const rpChars = useMemo(() => [...rpCharsBase, ...profChars], [rpCharsBase, profChars]);
+
+  // 프로필 관리 창 (관리자)
+  const [profOpen, setProfOpen] = useState(false);
+  const [pf, setPf] = useState<{ id?: string; name: string; sub: string; color: string; imgId?: string; crop?: CropValue } | null>(null);
+  const [pfCropOpen, setPfCropOpen] = useState(false);
+  const pfFileRef = useRef<HTMLInputElement>(null);
+  const pickPfImage = async (f?: File) => {
+    if (!f) return;
+    try {
+      const ref = await putBlob(f);
+      setPf(s => s && { ...s, imgId: ref, crop: undefined });
+    } catch (e) {
+      toast(`이미지를 올리지 못했습니다 — ${e instanceof Error ? e.message : String(e)}`);
     }
-    return isAdmin ? rpChars.filter(c => c.own) : rpChars.filter(c => !!charGrant(c, user?.id));
-  }, [rel, rpChars, isAdmin, user?.id]);
+  };
+  const saveProf = () => {
+    if (!pf) return;
+    if (!pf.name.trim()) { toast('프로필 이름을 입력해 주세요'); return; }
+    const item: RpProfile = {
+      id: pf.id ?? newId(), secId: sec.id, name: pf.name.trim(), sub: pf.sub.trim(),
+      color: pf.color, imgId: pf.imgId, crop: pf.crop,
+    };
+    saveProfiles(pf.id ? profAll.map(p => (p.id === pf.id ? item : p)) : [...profAll, item]);
+    setPf(null);
+    toast('프로필을 저장했습니다');
+  };
+  const removeProf = (p: RpProfile) =>
+    del.ask(`프로필 「${p.name}」를 삭제하시겠습니까?`, () => saveProfiles(profAll.filter(x => x.id !== p.id)),
+      '이미 쓴 대사는 남고, RELINK로 다른 캐릭터에 다시 연결할 수 있습니다.');
+    const speakChars = useMemo(() => {
+    let base: Character[];
+    if (rel) {
+      const members = rel.members.map(m => rpCharsBase.find(c => c.id === m.charId)).filter(Boolean) as Character[];
+      base = isAdmin ? members : members.filter(c => !!charGrant(c, user?.id));
+    } else {
+      base = isAdmin ? rpCharsBase.filter(c => c.own) : rpCharsBase.filter(c => !!charGrant(c, user?.id));
+    }
+    return [...base, ...secProfChars];   // 13th-street: 이 역극 탭의 전용 프로필은 참여자 모두가 고를 수 있다
+  }, [rel, rpCharsBase, secProfChars, isAdmin, user?.id]);
 
   const [speaker, setSpeaker] = useState<string>('');   // charId | 'desc' (플레이어 발화는 없앴다, v2.0)
   const [pickOpen, setPickOpen] = useState(false);
@@ -289,12 +346,12 @@ function RpPageInner() {
     if (!sel) return [] as { charId: string; own: boolean }[];
     const map = new Map<string, boolean>();
     for (const m of msgsOf(sel)) {
-      if (m.kind === 'char' && m.charId && !chars.some(c => c.id === m.charId) && !map.has(m.charId)) {
+        if (m.kind === 'char' && m.charId && !chars.some(c => c.id === m.charId) && !profAll.some(p => PROF_PREFIX + p.id === m.charId) && !map.has(m.charId)) {
         map.set(m.charId, !!m.charOwn);
       }
     }
     return [...map.entries()].map(([charId, own]) => ({ charId, own }));
-  }, [sel, chars]);
+    }, [sel, chars, profAll]);
   const [relinkOpen, setRelinkOpen] = useState(false);
   const [relinkSel, setRelinkSel] = useState<Record<string, string>>({});
   // 대체 후보 — 반드시 같은 영역(own)의 캐릭터만 (v1.9 버그 수정, 사용자 발견)
@@ -354,7 +411,7 @@ function RpPageInner() {
       const autoRight = ch
         ? (!!charGrant(ch, user?.id) || (!!ch.own && isAdmin))
         : (!!m.charOwn && isAdmin);
-      const right = m.side ? m.side === 'right' : autoRight;
+            const right = m.side ? m.side === 'right' : (isProf(m.charId) ? m.authorId === user?.id : autoRight);
       const rgb = hexRgb(color);
       const radius = right ? '14px 4px 14px 14px' : '4px 14px 14px 14px';
       return `<div style="display:flex;justify-content:${right ? 'flex-end' : 'flex-start'};margin:10px 0">
@@ -414,7 +471,7 @@ ${rows}
   const speakerLabel = speaker === 'desc' ? '지문 (DESC)' : (rpChars.find(c => c.id === speaker)?.name ?? '');
   const speakerChar = rpChars.find(c => c.id === speaker);
         // 13th-street: 좌우 지정 — 지금 고른 캐릭터의 말풍선 위치 (안 골랐으면 자동값)
-  const autoRightOf = (c?: Character) => !!c && (!!charGrant(c, user.id) || (!!c.own && isAdmin));
+    const autoRightOf = (c?: Character) => !!c && (isProf(c.id) || !!charGrant(c, user.id) || (!!c.own && isAdmin));
   const curSide = sideOf[speaker] ?? (autoRightOf(speakerChar) ? 'right' : 'left');
 
   return (
@@ -434,8 +491,14 @@ ${rows}
         <div className="panel rp-rooms">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 6px 12px', flexShrink: 0 }}>
             <b style={{ fontSize: 12, letterSpacing: '.1em', color: 'var(--sub)' }}>MY ROOMS</b>
-            <button className="btn btn-dark" style={{ padding: '0 12px', height: 30, fontSize: 11 }}
-              onClick={() => setNewOpen(true)}>＋ NEW ROOM</button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+              {isAdmin && (
+                <button className="btn btn-ghost" style={{ padding: '0 10px', height: 30, fontSize: 11 }}
+                  onClick={() => setProfOpen(true)}>PROFILE</button>
+              )}
+              <button className="btn btn-dark" style={{ padding: '0 12px', height: 30, fontSize: 11 }}
+                onClick={() => setNewOpen(true)}>＋ NEW ROOM</button>
+            </div>
           </div>
           <div className="rp-rooms-list">
             {myRooms.map(r => (
@@ -523,12 +586,12 @@ ${rows}
                   const autoRight = ch
                     ? (!!charGrant(ch, user.id) || (!!ch.own && isAdmin))
                     : (!!m.charOwn && isAdmin);
-                  const rightSide = m.side ? m.side === 'right' : autoRight;   // 13th-street: 지정값 우선
+                                    const rightSide = m.side ? m.side === 'right' : (isProf(m.charId) ? mine : autoRight);   // 13th-street: 지정값 우선, 프로필은 내가 쓴 것이 오른쪽
                   return (
                     <div key={m.id} className={`msg ${rightSide ? 'me' : ''}`} style={{ ['--cc' as string]: hexRgb(ch?.color) }}>
                       <Face ch={ch} crop={faceCropOf(ch)} className="face"
                         onContextMenu={e => {
-                          if (!isAdmin || !ch?.thumbId) return;
+                         if (!isAdmin || !ch?.thumbId || isProf(m.charId)) return;
                           e.preventDefault();
                           setFaceCtx({ x: e.clientX, y: e.clientY, ch });
                         }} />
@@ -563,7 +626,7 @@ ${rows}
                       <div className="rp-pick-pop" onClick={e => e.stopPropagation()}>
                         {speakChars.map(c => (
                           <button key={c.id} onClick={() => { setSpeaker(c.id); setPickOpen(false); }}>
-                            <Face ch={c} crop={faceCropOf(c)} className="f" />
+                           <Face ch={c} crop={faceCropOf(c)} className="f" />{c.name}
                           </button>
                         ))}
                         <button onClick={() => { setSpeaker('desc'); setPickOpen(false); }}>
@@ -780,6 +843,78 @@ ${rows}
         <FaceCropModal fileRef={faceEdit.ref} crop={faceEdit.crop}
           onClose={() => setFaceEdit(null)}
           onApply={c => saveFaceCrop(faceEdit.charId, c)} />
+      )}
+      {/* 13th-street: 역극 전용 프로필 관리 (관리자) */}
+      <Modal open={profOpen} onClose={() => { setProfOpen(false); setPf(null); }} small
+        title={pf ? (pf.id ? '프로필 수정' : '프로필 추가') : '역극 프로필'}
+        desc="이 역극 탭에서만 쓰는 프로필 — 캐릭터·AU에 등록하지 않아도 발화자로 고를 수 있습니다"
+        actions={pf ? (
+          <>
+            <button className="btn btn-ghost" onClick={() => setPf(null)}>BACK</button>
+            <button className="btn btn-dark" onClick={saveProf}>SAVE</button>
+          </>
+        ) : (
+          <button className="btn btn-dark" onClick={() => setProfOpen(false)}>닫기</button>
+        )}>
+        {pf ? (
+          <div style={{ display: 'grid', gap: 10 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div className={pf.imgId ? undefined : 'ph'}
+                style={{ width: 48, height: 48, borderRadius: 12, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+                {pf.imgId && <CroppedBlobImg fileRef={pf.imgId} crop={pf.crop} />}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button className="btn btn-ghost" style={{ padding: '5px 11px', fontSize: 11 }}
+                  onClick={() => pfFileRef.current?.click()}>{pf.imgId ? '사진 바꾸기' : '사진 올리기'}</button>
+                {pf.imgId && (
+                  <button className="btn btn-ghost" style={{ padding: '5px 11px', fontSize: 11 }}
+                    onClick={() => setPfCropOpen(true)}>✂ 위치 조정</button>
+                )}
+                {pf.imgId && (
+                  <button className="btn btn-ghost" style={{ padding: '5px 11px', fontSize: 11 }}
+                    onClick={() => setPf({ ...pf, imgId: undefined, crop: undefined })}>사진 빼기</button>
+                )}
+              </div>
+              <input ref={pfFileRef} type="file" accept="image/*" style={{ display: 'none' }}
+                onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; void pickPfImage(f); }} />
+            </div>
+            <KInput placeholder="이름" value={pf.name} onChange={e => setPf({ ...pf, name: e.target.value })} />
+            <KInput placeholder="한 줄 소개 (선택)" value={pf.sub} onChange={e => setPf({ ...pf, sub: e.target.value })} />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'flex-end' }}>
+              <span className="cp-lb">말풍선 색</span>
+              <ColorField value={pf.color} onChange={c => setPf({ ...pf, color: c })} />
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: 8 }}>
+            {profAll.filter(p => p.secId === sec.id).map(p => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', border: '1.5px solid var(--line)', borderRadius: 9 }}>
+                <div className={p.imgId ? undefined : 'ph'}
+                  style={{ width: 38, height: 38, borderRadius: 11, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+                  {p.imgId && <CroppedBlobImg fileRef={p.imgId} crop={p.crop} />}
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <b style={{ fontSize: 12.5, color: p.color }}>{p.name}</b>
+                  {p.sub && <small style={{ display: 'block', color: 'var(--faint)', fontSize: 10.5 }}>{p.sub}</small>}
+                </div>
+                <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5 }}
+                  onClick={() => setPf({ ...p })}>EDIT</button>
+                <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5 }}
+                  onClick={() => removeProf(p)}>DEL</button>
+              </div>
+            ))}
+            {profAll.filter(p => p.secId === sec.id).length === 0 && (
+              <p className="hint" style={{ margin: 0 }}>아직 프로필이 없습니다 — 아래 버튼으로 추가해 보세요</p>
+            )}
+            <button className="btn btn-dark" style={{ justifySelf: 'center' }}
+              onClick={() => setPf({ name: '', sub: '', color: '#5d636d' })}>＋ ADD PROFILE</button>
+          </div>
+        )}
+      </Modal>
+      {pfCropOpen && pf?.imgId && (
+        <FaceCropModal fileRef={pf.imgId} crop={pf.crop}
+          onClose={() => setPfCropOpen(false)}
+          onApply={c => { setPf(s => s && { ...s, crop: c }); setPfCropOpen(false); }} />
       )}
       {del.element}
     </section>
