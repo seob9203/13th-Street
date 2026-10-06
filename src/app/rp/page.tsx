@@ -223,6 +223,24 @@ function RpPageInner() {
   };
   useEffect(() => { setSpeaker(speakChars[0]?.id ?? 'desc'); setPickOpen(false); }, [sel?.id, speakChars]);
   
+  // 13th-street: Tab 한 번으로 직전 발화자와 전환 — 바꿀 때마다 직전 발화자를 기억해 둔다
+  const curSpeakerRef = useRef('');
+  const lastSpeakerRef = useRef('');
+  useEffect(() => {
+    if (speaker && speaker !== curSpeakerRef.current) {
+      lastSpeakerRef.current = curSpeakerRef.current;
+      curSpeakerRef.current = speaker;
+    }
+  }, [speaker]);
+  const swapSpeaker = () => {
+    const prev = lastSpeakerRef.current;
+    if (prev && (prev === 'desc' || speakChars.some(c => c.id === prev))) { setSpeaker(prev); return; }
+    // 기록이 없거나 이 방에 없는 사람이면 목록의 다음 사람으로
+    if (speakChars.length === 0) return;
+    const i = speakChars.findIndex(c => c.id === speaker);
+    setSpeaker(speakChars[(i + 1) % speakChars.length].id);
+  };
+  
   // 13th-street: 좌우 지정 — 캐릭터별로 고른 말풍선 위치를 기억해 두는 곳
   const [sideOf, setSideOf] = useState<Record<string, 'left' | 'right'>>({});
   useEffect(() => { setSideOf({}); }, [sel?.id]);
@@ -649,7 +667,14 @@ ${rows}
                   <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
                     onFocus={() => setMFocus(true)}
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
-                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
+                                        onKeyDown={e => {
+                      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+                      // 13th-street: Tab = 직전 발화자로 전환 (다른 키와 같이 누르면 평소대로)
+                      else if (e.key === 'Tab' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                        e.preventDefault();
+                        swapSpeaker();
+                      }
+                    }} />
                   <button className="btn btn-dark" onClick={send}>SEND</button>
                 </div>
               )}
