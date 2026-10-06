@@ -2,7 +2,7 @@
 // 역극 (4.9) — 실시간 채팅형. 방 개설(자관 기반/자유) · 참여자에게만 존재 노출 ·
 // 캐릭터 선택 발화(테마색 말풍선) · 지문(/desc) · 메시지 수정/삭제 · 완결/공개 전환 · HTML 내보내기
 // ※ 실시간 송수신·입력 중 표시·참여자 전원 동의는 Supabase Realtime 연동 시 활성화 (현재 localStorage)
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
 import {
@@ -17,6 +17,7 @@ import { useBlobUrl } from '@/lib/blobStore';   // 13th-street: 프로필 사진
 import { createPortal } from 'react-dom';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
+import { useSectionParam, filterSection, sectionSetter, secStamp } from '@/lib/sectionStore';   // 13th-street: 역극 여러 개
 import { getSetting, setSetting, onSettingChange } from '@/lib/settingStore';   // 13th-street: 말머리 순서
 
 /** 캐릭터 얼굴 칩 (썸네일 or 데모 플레이스홀더) — 13th-street: 정사각형용 위치(crop)와 우클릭 지원 */
@@ -47,11 +48,15 @@ const fmtHM = (iso: string) => {
 import { useMembers } from '@/lib/members';
 import { pushNotif } from '@/lib/notifStore';
 
-export default function RpPage() {
+function RpPageInner() {
   const { user, isAdmin } = useAuth();
   const toast = useToast();
   const del = useConfirmDelete();
-  const [rooms, setRooms, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
+    // 13th-street: 역극 여러 개 — 주소의 ?s= 가 가리키는 소속의 방만 보이고, 저장은 그 소속 자리만 교체한다
+  const [roomsAll, setRoomsAll, loaded] = useLocalList<RpRoom>('ohome.rp.v1', RP_SEED);
+  const sec = useSectionParam('rp');
+  const rooms = useMemo(() => filterSection(roomsAll, sec.id), [roomsAll, sec.id]);
+  const setRooms = sectionSetter(roomsAll, sec.id, setRoomsAll);
   // 발화는 방과 따로 저장한다 (v2.0) — 방 안에 두면 말할 때마다 방을 UPDATE 해야 해서
   // 남이 만든 방에서는 참여자가 발화할 수 없었다 (댓글·문답과 같은 뿌리)
   const [msgRows, setMsgRows] = useLocalList<RpMessageRow>(RP_MSG_KEY, RP_MSG_SEED);
@@ -265,6 +270,7 @@ export default function RpPage() {
       auId: nRel !== 'none' && nAu !== 'base' ? nAu : undefined,
       memberIds: members, status: 'ongoing', isPublic: false,
       createdBy: user.id, created: new Date().toISOString(), lastRead: {}, messages: [],
+            ...secStamp(sec.id),   // 13th-street: 소속 (기본 역극이면 표시를 남기지 않음)
     };
     setRooms([room, ...rooms]);
     setSelId(room.id);
@@ -414,7 +420,7 @@ ${rows}
   return (
     <section className={`page page-rp ${mFocus ? 'rp-focus' : ''}`}>
       <div className="page-head">
-        <PageTitle>ROLEPLAY</PageTitle>
+        <PageTitle>{sec.id === 'main' ? 'ROLEPLAY' : sec.name}</PageTitle>
         <EditableDesc k="rp-desc" def="실시간 채팅형 · 참여자에게만 존재 노출 · 캐릭터 선택 발화" />
       </div>
 
@@ -778,4 +784,9 @@ ${rows}
       {del.element}
     </section>
   );
+}
+
+      /** ?s= 를 읽으므로 Suspense 경계가 필요하다 (Next App Router) — 13th-street */
+export default function RpPage() {
+  return <Suspense fallback={<section className="page" />}><RpPageInner /></Suspense>;
 }
