@@ -35,12 +35,32 @@ export function RichEditor({ value, onChange, placeholder }: {
   const toast = useToast();
   const fileRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
+    // 13th-street: 붙여넣기·끌어다 놓기가 아래의 이미지 올리기 함수를 부를 수 있게 이어 주는 통로
+  const uploadRef = useRef<((files: File[], pos?: number) => Promise<void>) | null>(null);
   const editor = useEditor({
     extensions: [StarterKit, Image],
     content: value || '<p></p>',
     immediatelyRender: false,
-    editorProps: {
+        editorProps: {
       attributes: { class: 're-content prose' },
+      // 13th-street: 이미지 붙여넣기 — 글자가 같이 들어 있으면(엑셀·워드 복사 등) 평소처럼 붙여넣는다
+      handlePaste: (_v, event) => {
+        const files = Array.from(event.clipboardData?.files ?? []).filter(f => f.type.startsWith('image/'));
+        if (files.length === 0 || event.clipboardData?.getData('text/plain')) return false;
+        event.preventDefault();
+        void uploadRef.current?.(files);
+        return true;
+      },
+      // 13th-street: 이미지 끌어다 놓기 — 놓은 자리에 들어간다 (본문 안에서 옮기는 드래그는 건드리지 않음)
+      handleDrop: (view, event, _slice, moved) => {
+        if (moved) return false;
+        const files = Array.from(event.dataTransfer?.files ?? []).filter(f => f.type.startsWith('image/'));
+        if (files.length === 0) return false;
+        event.preventDefault();
+        const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos;
+        void uploadRef.current?.(files, pos);
+        return true;
+      },
     },
     onUpdate: ({ editor: e }) => onChange(e.getHTML()),
   });
@@ -59,19 +79,30 @@ export function RichEditor({ value, onChange, placeholder }: {
      다른 이미지들과 같은 경로(putBlob)를 타므로 서버 모드면 저장소에 올라가고 공개 주소가 나온다.
      서버가 없는 로컬 모드에서는 그 주소가 이 브라우저 안에서만 뜻이 있는 파일 id라
      <img>가 읽지 못한다 — 그때만 본문에 그대로 심는다(개발·오프라인용). */
-  const insertImage = async (f?: File) => {
-    if (!f) return;
+   // 13th-street: 여러 장을 차례로 올려 넣는다 — pos가 있으면 첫 장은 그 자리에(끌어다 놓기), 나머지는 이어서
+  const insertImages = async (files: File[], pos?: number) => {
+    if (files.length === 0) return;
     setBusy(true);
-    try {
-      const ref = await putBlob(f);
-      const src = /^https?:/.test(ref) ? ref : await toDataUrl(f);
-      editor.chain().focus().setImage({ src }).run();
-    } catch (e) {
-      // 조용히 실패하면 「올렸는데 왜 안 들어가지」가 된다 — 사유를 그대로 보여 준다
-      toast(`이미지를 올리지 못했습니다 — ${e instanceof Error ? e.message : String(e)}`);
+    let at = pos;
+    for (const f of files) {
+      try {
+        const ref = await putBlob(f);
+        const src = /^https?:/.test(ref) ? ref : await toDataUrl(f);
+        if (at != null) {
+          editor.chain().focus().insertContentAt(at, { type: 'image', attrs: { src } }).run();
+          at = undefined;
+        } else {
+          editor.chain().focus().setImage({ src }).run();
+        }
+      } catch (e) {
+        // 조용히 실패하면 「올렸는데 왜 안 들어가지」가 된다 — 사유를 그대로 보여 준다
+        toast(`이미지를 올리지 못했습니다 — ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
     setBusy(false);
   };
+  const insertImage = (f?: File) => insertImages(f ? [f] : []);   // 툴바 첨부 버튼은 이전과 똑같이 동작
+  uploadRef.current = insertImages;
 
   return (
     <div className="re-wrap">
