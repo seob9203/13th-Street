@@ -17,7 +17,10 @@ export function EmotePicker({ onPick }: { onPick: (token: string) => void }) {
       .trim().replace(/[\s:]/g, '');
     if (!name) return;
     if (emotes.some(e => e.name === name)) { alert('같은 이름이 이미 있어요'); return; }
-    const src = await shrinkImage(file);
+        let src = '';
+    try { src = await shrinkImage(file); }
+    catch (err) { alert(err instanceof Error ? err.message : '이미지를 읽지 못했어요'); return; }
+
     setEmotes([...emotes, { id: newId(), name, src }]);
   };
 
