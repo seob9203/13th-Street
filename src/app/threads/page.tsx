@@ -23,6 +23,9 @@ import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { Lightbox } from '@/components/ui/Lightbox';
 import { useToast } from '@/components/ui/Toast';
 import { pushNotif, notifyAdmins } from '@/lib/notifStore';
+import { EmotePicker } from '@/components/ui/EmotePicker';
+import { CommentText } from '@/components/ui/CommentText';
+
 
 // 접기 문구 (게시판 6.2와 동일)
 const FOLD_LABEL = { spoiler: '스포일러 주의', adult: '수위 주의' };
@@ -497,7 +500,8 @@ function ThreadsPageInner() {
                             <small style={{ cursor: 'var(--cur-pointer,pointer)', marginLeft: 8 }}
                               onClick={() => removeComment(x)}>삭제</small>
                           )}
-                          <p>{x.text}</p>
+                          <p><CommentText text={x.text} /></p>
+
                           {x.images && x.images.length > 0 && (
                             <div className={`thr-imgs ${x.images.length === 1 ? 'one' : ''}`} style={{ maxWidth: 260, margin: '6px 0 0' }}>
                               {x.images.map((id, k) => (
@@ -541,6 +545,8 @@ function ThreadsPageInner() {
                         </button>
                       </>
                     )}
+                    <EmotePicker onPick={t => setCmt(cmt + t)} />
+                    <button className="btn btn-dark" disabled={cmtBusy} onClick={addComment}>POST</button>
                     <button className="btn btn-dark" disabled={cmtBusy} onClick={addComment}>POST</button>
                   </div>
                 </div>
