@@ -17,6 +17,9 @@ import { GuestIdBar } from '@/components/ui/GuestId';
 import { useToast } from '@/components/ui/Toast';
 import { PageTitle } from '@/components/ui/PageText';
 import { pushNotif } from '@/lib/notifStore';
+import { EmotePicker } from '@/components/ui/EmotePicker';
+import { CommentText } from '@/components/ui/CommentText';
+
 
 const FOLD_LABEL = { spoiler: '스포일러 주의', adult: '수위 주의' };
 
@@ -143,7 +146,8 @@ export default function BoardDetailPage() {
           삭제
         </small>
       )}
-      <p>{c.text}</p>
+      <p><CommentText text={c.text} /></p>
+
     </div>
   );
 
@@ -216,7 +220,9 @@ export default function BoardDetailPage() {
                 value={cmt} onChange={e => setCmt(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') addComment(); }}
               />
+              <EmotePicker onPick={t => setCmt(cmt + t)} />
               <button className="btn btn-dark" onClick={addComment}>POST</button>
+
             </div>
           </div>
         ) : (
