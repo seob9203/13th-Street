@@ -43,6 +43,25 @@ const PhotoIcon = () => (
   </svg>
 );
 
+// 13th-street: 붙여넣기·끌어다 놓기로 이미지 파일 받기 — 글자가 같이 붙는 경우(워드·엑셀)는 평소처럼 둔다
+const imgFilesOf = (dt?: DataTransfer | null) =>
+  Array.from(dt?.files ?? []).filter(f => f.type.startsWith('image/'));
+const pasteImgs = (e: React.ClipboardEvent, add: (fs: File[]) => void) => {
+  const fs = imgFilesOf(e.clipboardData);
+  if (fs.length === 0 || e.clipboardData.getData('text/plain')) return;
+  e.preventDefault();
+  add(fs);
+};
+const overFiles = (e: React.DragEvent) => {
+  if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault();
+};
+const dropImgs = (e: React.DragEvent, add: (fs: File[]) => void) => {
+  const fs = imgFilesOf(e.dataTransfer);
+  if (fs.length === 0) return;
+  e.preventDefault();
+  add(fs);
+};
+
 /** 수정 모달의 기존 첨부 이미지 썸네일 (IndexedDB) */
 function KeepThumb({ id, onRemove }: { id: string; onRemove: () => void }) {
   const url = useBlobUrl(id);
@@ -135,7 +154,7 @@ function ThreadsPageInner() {
   const [files, setFiles] = useState<File[]>([]);
   const [urls, setUrls] = useState<string[]>([]);
   const imgRef = useRef<HTMLInputElement>(null);
-  const addFiles = (list: FileList | null) => {
+    const addFiles = (list: FileList | File[] | null) => {
     if (!list) return;
     const next = [...files, ...Array.from(list)].slice(0, 4); // 이미지 4장 제한 (4.17)
     if (files.length + list.length > 4) toast('이미지는 최대 4장까지 첨부할 수 있습니다');
@@ -177,7 +196,7 @@ function ThreadsPageInner() {
     setEpKeep(p.images); setEpPh(p.images.length ? [] : (p.phList ?? []));
     setEpFiles([]); setEpUrls([]);
   };
-  const epAddFiles = (list: FileList | null) => {
+    const epAddFiles = (list: FileList | File[] | null) => {
     if (!list) return;
     const room = 4 - epKeep.length - epPh.length;
     const next = [...epFiles, ...Array.from(list)].slice(0, Math.max(0, room));
@@ -220,12 +239,46 @@ function ThreadsPageInner() {
   const [cmt, setCmt] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [gName, setGName] = useState('');
+    // 13th-street: 회원 댓글 이미지 첨부 (방문자는 글자만)
+  const [cmtFiles, setCmtFiles] = useState<File[]>([]);
+  const [cmtUrls, setCmtUrls] = useState<string[]>([]);
+  const [cmtBusy, setCmtBusy] = useState(false);
+  const cmtImgRef = useRef<HTMLInputElement>(null);
+  const addCmtFiles = (list: FileList | File[] | null) => {
+    if (!list || !user) return;
+    const arr = Array.from(list).filter(f => f.type.startsWith('image/'));
+    if (arr.length === 0) return;
+    if (cmtFiles.length + arr.length > 4) toast('이미지는 최대 4장까지 첨부할 수 있습니다');
+    const next = [...cmtFiles, ...arr].slice(0, 4);
+    setCmtFiles(next);
+    setCmtUrls(next.map(f => URL.createObjectURL(f)));
+  };
+  const removeCmtFile = (i: number) => {
+    const next = cmtFiles.filter((_, x) => x !== i);
+    setCmtFiles(next);
+    setCmtUrls(next.map(f => URL.createObjectURL(f)));
+  };
   const guestMode = !user;                       // 손님 작성 허용 (방명록·로드비 기본과 동일)
   const comments = sel ? commentsFor(cmtRows, 'thread', sel.id) : [];
-  const addComment = () => {
-    if (!sel || !cmt.trim()) return;
+    const addComment = async () => {
+    if (!sel || cmtBusy || (!cmt.trim() && !(user && cmtFiles.length))) return;
     if (guestMode && !gName.trim()) { toast('닉네임을 입력해 주세요'); return; }
-    const base = { id: newId(), text: cmt.trim(), date: new Date().toISOString(), parentId: replyTo ?? undefined };
+    // 13th-street: 회원 댓글의 이미지를 먼저 올린다
+    const images: string[] = [];
+    if (user && cmtFiles.length) {
+      setCmtBusy(true);
+      try { for (const f of cmtFiles) images.push(await putBlob(f)); }
+      catch (e) {
+        toast(`이미지를 올리지 못했습니다 — ${e instanceof Error ? e.message : String(e)}`);
+        setCmtBusy(false);
+        return;
+      }
+      setCmtBusy(false);
+    }
+    const base = {
+      id: newId(), text: cmt.trim(), date: new Date().toISOString(), parentId: replyTo ?? undefined,
+      ...(images.length ? { images } : {}),
+    };
     const c: CommentRow = user
       ? { ...base, target: 'thread' as const, targetId: sel.id, author: user.nickname, authorId: user.id }
       : { ...base, target: 'thread' as const, targetId: sel.id, author: gName.trim(), authorId: '' };
@@ -250,7 +303,7 @@ function ThreadsPageInner() {
         });
       }
     }
-    setCmt(''); setReplyTo(null);
+        setCmt(''); setReplyTo(null); setCmtFiles([]); setCmtUrls([]);
   };
   // 댓글 삭제 — 답글도 함께. 손님 댓글은 관리자만 지운다 (게시판 v2.0 확정과 동일)
   const removeComment = (c: Comment) =>
@@ -389,7 +442,10 @@ function ThreadsPageInner() {
                 </div>
                 {/* 이어쓰기 컴포저 (트위터식, 관리자) */}
                 {isAdmin && (
-                  <div className="thr-write">
+                  <div className="thr-write"
+                    onPaste={e => pasteImgs(e, addFiles)}
+                    onDragOver={overFiles}
+                    onDrop={e => dropImgs(e, addFiles)}>
                     <textarea placeholder="타래 이어쓰기…" value={text} onChange={e => setText(e.target.value)} />
                     {urls.length > 0 && (
                       <div className="thr-att">
@@ -442,19 +498,50 @@ function ThreadsPageInner() {
                               onClick={() => removeComment(x)}>삭제</small>
                           )}
                           <p>{x.text}</p>
+                          {x.images && x.images.length > 0 && (
+                            <div className={`thr-imgs ${x.images.length === 1 ? 'one' : ''}`} style={{ maxWidth: 260, margin: '6px 0 0' }}>
+                              {x.images.map((id, k) => (
+                                <div key={id} className="im" onClick={() => setLb({ srcs: x.images!, idx: k })}><BlobImg fileRef={id} /></div>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </React.Fragment>
                   ))}
                   {comments.length === 0 && <p className="hint" style={{ margin: 0 }}>첫 댓글을 남겨보세요</p>}
                 </div>
-                <div className={`cmt-input ${guestMode ? 'guest' : ''}`}>
+                {/* 13th-street: 회원 댓글 이미지 미리보기 */}
+                {user && cmtUrls.length > 0 && (
+                  <div className="thr-att" style={{ paddingTop: 10 }}>
+                    {cmtUrls.map((u, i) => (
+                      <div key={u} className="at">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={u} alt="" />
+                        <button onClick={() => removeCmtFile(i)}>✕</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className={`cmt-input ${guestMode ? 'guest' : ''}`}
+                  onPaste={user ? e => pasteImgs(e, addCmtFiles) : undefined}
+                  onDragOver={user ? overFiles : undefined}
+                  onDrop={user ? e => dropImgs(e, addCmtFiles) : undefined}>
                   {guestMode && <GuestIdBar name={gName} onName={setGName} />}
                   <div className="ci-row" style={guestMode ? undefined : { display: 'contents' }}>
                     <KInput placeholder={replyTo ? '답글 작성...' : '댓글 남기기...'} value={cmt}
                       onChange={e => setCmt(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') addComment(); }} />
-                    <button className="btn btn-dark" onClick={addComment}>POST</button>
+                    {user && (
+                      <>
+                        <input ref={cmtImgRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+                          onChange={e => { addCmtFiles(e.target.files); e.target.value = ''; }} />
+                        <button className="icobtn" data-tip="사진 추가 (최대 4장)" onClick={() => cmtImgRef.current?.click()}>
+                          <PhotoIcon />
+                        </button>
+                      </>
+                    )}
+                    <button className="btn btn-dark" disabled={cmtBusy} onClick={addComment}>POST</button>
                   </div>
                 </div>
               </>
@@ -484,7 +571,10 @@ function ThreadsPageInner() {
           <button className="btn btn-ghost" onClick={() => setEpId(null)}>CANCEL</button>
           <button className="btn btn-dark" onClick={saveEdit}>SAVE</button>
         </>}>
-        <div style={{ display: 'grid', gap: 10 }}>
+        <div style={{ display: 'grid', gap: 10 }}
+          onPaste={e => pasteImgs(e, epAddFiles)}
+          onDragOver={overFiles}
+          onDrop={e => dropImgs(e, epAddFiles)}>
           <KTextarea style={{ minHeight: 120 }} value={epText} onChange={e => setEpText(e.target.value)} />
           {/* 접기 (v2.0 스포일러 쿠션) — 컴포저와 같은 선택지 */}
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
