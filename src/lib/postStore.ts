@@ -19,6 +19,7 @@ export interface Comment {
   date: string;          // ISO
   parentId?: string;     // 대댓글
   guestPw?: string;      // 게스트 본인 수정·삭제용 (mock — 실서비스는 서버 해시)
+    images?: string[];     // 13th-street: 첨부 이미지 (회원 댓글만)
 }
 
 /**
