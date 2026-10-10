@@ -57,7 +57,7 @@ export interface Backend {
   /** 가입 회원 목록 — 역극 참여자 선택·회원 관리 화면용.
    *  avatarUrl도 내준다 (v2.0 사용자 제보) — 이미지 정리가 콘텐츠·설정만 훑던 시절, 프로필 사진은
    *  어디에도 참조가 안 잡혀 「아무도 안 쓰는 파일」로 지워졌다. */
-  listMembers(): Promise<{ id: string; nickname: string; role: 'admin' | 'member'; email?: string; avatarUrl?: string }[]>;
+   listMembers(): Promise<{ id: string; nickname: string; role: 'admin' | 'member'; email?: string; avatarUrl?: string; avatarColor?: string }[]>;
 
   /* ---- 목록(콘텐츠) ---- */
   fetchList<T extends ListItem>(coll: string): Promise<T[]>;
