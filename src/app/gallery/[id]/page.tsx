@@ -12,11 +12,30 @@ import { ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput } from '@/components/ui/Kit';   // 13th-street: 갤러리 댓글
 import { useMenuSettings } from '@/lib/menuStore';
 import { useToast } from '@/components/ui/Toast';
-import { useBlobUrl } from '@/lib/blobStore';
+import { useBlobUrl, putBlob, BlobImg } from '@/lib/blobStore';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { PageTitle } from '@/components/ui/PageText';
 import { Lightbox } from '@/components/ui/Lightbox';
 import { useBoardSettings, boardBadgeStyle } from '@/lib/boardStore';
+
+// 13th-street: 댓글 이미지 — 붙여넣기·끌어다 놓기·사진 버튼 (글자가 같이 붙는 경우는 평소처럼 둔다)
+const imgFilesOf = (dt?: DataTransfer | null) =>
+  Array.from(dt?.files ?? []).filter(f => f.type.startsWith('image/'));
+const pasteImgs = (e: React.ClipboardEvent, add: (fs: File[]) => void) => {
+  const fs = imgFilesOf(e.clipboardData);
+  if (fs.length === 0 || e.clipboardData.getData('text/plain')) return;
+  e.preventDefault();
+  add(fs);
+};
+const overFiles = (e: React.DragEvent) => {
+  if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault();
+};
+const dropImgs = (e: React.DragEvent, add: (fs: File[]) => void) => {
+  const fs = imgFilesOf(e.dataTransfer);
+  if (fs.length === 0) return;
+  e.preventDefault();
+  add(fs);
+};
 
 export default function BackupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -33,6 +52,26 @@ export default function BackupDetailPage() {
   const [cmtRows, setCmtRows] = useLocalList<CommentRow>(COMMENT_KEY, COMMENT_SEED);
   const [cmt, setCmt] = useState('');
   const [replyTo, setReplyTo] = useState<string | null>(null);
+    // 13th-street: 댓글 이미지
+  const [cmtFiles, setCmtFiles] = useState<File[]>([]);
+  const [cmtUrls, setCmtUrls] = useState<string[]>([]);
+  const [cmtBusy, setCmtBusy] = useState(false);
+  const [cmtLb, setCmtLb] = useState<{ srcs: string[]; idx: number } | null>(null);
+  const cmtImgRef = useRef<HTMLInputElement>(null);
+  const addCmtFiles = (list: FileList | File[] | null) => {
+    if (!list || !user) return;
+    const arr = Array.from(list).filter(f => f.type.startsWith('image/'));
+    if (arr.length === 0) return;
+    if (cmtFiles.length + arr.length > 4) toast('이미지는 최대 4장까지 첨부할 수 있습니다');
+    const next = [...cmtFiles, ...arr].slice(0, 4);
+    setCmtFiles(next);
+    setCmtUrls(next.map(f => URL.createObjectURL(f)));
+  };
+  const removeCmtFile = (i: number) => {
+    const next = cmtFiles.filter((_, x) => x !== i);
+    setCmtFiles(next);
+    setCmtUrls(next.map(f => URL.createObjectURL(f)));
+  };
   const { st: boardSet } = useBoardSettings(); // 유형 뱃지 색 (환경설정 > 게시판 관리)
 
   const p = posts.find(x => x.id === id);
@@ -115,11 +154,24 @@ export default function BackupDetailPage() {
   const comments = commentsFor(cmtRows, 'gallery', p.id);
   const cmtRoots = comments.filter(c => !c.parentId);
   const cmtChildren = (pid: string) => comments.filter(c => c.parentId === pid);
-  const addComment = () => {
-    if (!user || !cmt.trim()) return;
+   const addComment = async () => {
+    if (!user || cmtBusy || (!cmt.trim() && cmtFiles.length === 0)) return;
+    // 13th-street: 이미지를 먼저 올린다
+    const images: string[] = [];
+    if (cmtFiles.length) {
+      setCmtBusy(true);
+      try { for (const f of cmtFiles) images.push(await putBlob(f)); }
+      catch (e) {
+        toast(`이미지를 올리지 못했습니다 — ${e instanceof Error ? e.message : String(e)}`);
+        setCmtBusy(false);
+        return;
+      }
+      setCmtBusy(false);
+    }
     const c: CommentRow = {
       id: newId(), text: cmt.trim(), date: new Date().toISOString(), parentId: replyTo ?? undefined,
       target: 'gallery', targetId: p.id, author: user.nickname, authorId: user.id,
+            ...(images.length ? { images } : {}),
     };
     setCmtRows([...cmtRows, c]);
     const href = `/gallery/${p.id}`;
@@ -137,7 +189,7 @@ export default function BackupDetailPage() {
         pushNotif({ type: 'comment', toUserId: to, href, title: '참여한 댓글에 새 답글이 달렸습니다', body: `${c.author} — ${c.text.slice(0, 50)}` });
       }
     }
-    setCmt(''); setReplyTo(null);
+    setCmt(''); setReplyTo(null); setCmtFiles([]); setCmtUrls([]);
   };
   const removeComment = (c: Comment) =>
     del.ask('이 댓글을 삭제하시겠습니까?', () =>
@@ -277,7 +329,14 @@ export default function BackupDetailPage() {
                       <small style={{ cursor: 'var(--cur-pointer,pointer)', marginLeft: 8 }}
                         onClick={() => removeComment(x)}>삭제</small>
                     )}
-                    <p>{x.text}</p>
+{x.text && <p>{x.text}</p>}
+                    {x.images && x.images.length > 0 && (
+                      <div className={`thr-imgs ${x.images.length === 1 ? 'one' : ''}`} style={{ maxWidth: 260, margin: '6px 0 0' }}>
+                        {x.images.map((id, k) => (
+                          <div key={id} className="im" onClick={() => setCmtLb({ srcs: x.images!, idx: k })}><BlobImg fileRef={id} /></div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </React.Fragment>
@@ -285,11 +344,33 @@ export default function BackupDetailPage() {
             {comments.length === 0 && <p className="hint" style={{ margin: 0 }}>{user ? '첫 댓글을 남겨보세요' : '댓글이 없습니다'}</p>}
           </div>
           {user ? (
-            <div className="cmt-input" style={{ padding: '12px 0 0' }}>
-              <KInput placeholder={replyTo ? '답글 작성...' : '댓글 남기기...'} value={cmt}
-                onChange={e => setCmt(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') addComment(); }} />
-              <button className="btn btn-dark" onClick={addComment}>POST</button>
+<div onPaste={e => pasteImgs(e, addCmtFiles)} onDragOver={overFiles} onDrop={e => dropImgs(e, addCmtFiles)}>
+              {cmtUrls.length > 0 && (
+                <div className="thr-att" style={{ padding: '12px 0 0' }}>
+                  {cmtUrls.map((u, i) => (
+                    <div key={u} className="at">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={u} alt="" />
+                      <button onClick={() => removeCmtFile(i)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div className="cmt-input" style={{ padding: '12px 0 0' }}>
+                <KInput placeholder={replyTo ? '답글 작성...' : '댓글 남기기...'} value={cmt}
+                  onChange={e => setCmt(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addComment(); }} />
+                <input ref={cmtImgRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+                  onChange={e => { addCmtFiles(e.target.files); e.target.value = ''; }} />
+                <button className="icobtn" data-tip="사진 추가 (최대 4장)" onClick={() => cmtImgRef.current?.click()}>
+                  <svg viewBox="0 0 24 24">
+                    <rect x="3" y="4" width="18" height="16" rx="3" />
+                    <circle cx="9" cy="10" r="1.6" />
+                    <path d="M3.5 17.5 9 13l4 3.5 3.5-3 4 4" />
+                  </svg>
+                </button>
+                <button className="btn btn-dark" disabled={cmtBusy} onClick={addComment}>POST</button>
+              </div>
             </div>
           ) : (
             <p className="hint" style={{ margin: '12px 0 0' }}>댓글은 로그인한 회원만 쓸 수 있습니다</p>
@@ -301,6 +382,7 @@ export default function BackupDetailPage() {
         <Lightbox srcs={p.images} index={cur} onClose={() => setLbOpen(false)} />
       )}
 
+      {cmtLb && <Lightbox srcs={cmtLb.srcs} index={cmtLb.idx} onClose={() => setCmtLb(null)} />}
       {del.element}
       <ConfirmModal open={delAsk} title="게시물을 삭제하시겠습니까?" body="삭제한 게시물은 복구할 수 없습니다."
         onClose={() => setDelAsk(false)}
