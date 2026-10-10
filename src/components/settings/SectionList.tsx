@@ -126,6 +126,8 @@ export function SectionList({ kind }: { kind: SectionKind }) {
                   <button className={commentsOf(s.id) ? 'on' : ''}
                     onClick={() => setCommentsOf(s.id, true)}>댓글 ON</button>
                 </div>
+              )}
+              {kind === 'gallery' && (    
             <div className="mini-seg" title="목록에서 글이 늘어서는 순서">
                   <button className={!oldestOf(s.id) ? 'on' : ''}
                     onClick={() => setOldestOf(s.id, false)}>최신순</button>
