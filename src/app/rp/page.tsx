@@ -693,12 +693,11 @@ ${rows}
               </div>
 
               {sel.status === 'ongoing' && (
-                <div className="rp-input" style={{ flexWrap: 'wrap' }}
-                  onPaste={e => pasteImgs(e, addFiles)}
+                <div onPaste={e => pasteImgs(e, addFiles)}
                   onDragOver={overFiles}
                   onDrop={e => dropImgs(e, addFiles)}>
                   {urls.length > 0 && (
-                    <div className="thr-att" style={{ padding: 0, flexBasis: '100%' }}>
+                    <div className="thr-att" style={{ padding: '10px 12px 0' }}>
                       {urls.map((u, i) => (
                         <div key={u} className="at">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -708,6 +707,7 @@ ${rows}
                       ))}
                     </div>
                   )}
+                  <div className="rp-input">
                   {/* 발화자 선택 — 캐릭터 / 지문 (v2.0 사용자 확정: 역극에는 이 둘만 있으면 된다) */}
                   <div className="char-pick" onClick={() => setPickOpen(o => !o)}>
                     {speaker === 'desc'
@@ -738,7 +738,7 @@ ${rows}
                       {curSide === 'right' ? '오른쪽 ▶' : '◀ 왼쪽'}
                     </button>
                   )}
-                  <KTextarea style={{ minHeight: 44 }} value={text} onChange={e => setText(e.target.value)}
+                    <KTextarea style={{ minHeight: 44, flex: 1, minWidth: 0 }} value={text} onChange={e => setText(e.target.value)}
                     onFocus={() => setMFocus(true)}
                     onBlur={() => setTimeout(() => setMFocus(false), 180)}
                                         onKeyDown={e => {
@@ -759,6 +759,7 @@ ${rows}
                     </svg>
                   </button>
                   <button className="btn btn-dark" disabled={imgBusy} onClick={send}>SEND</button>
+                </div>
                 </div>
               )}
             </>
