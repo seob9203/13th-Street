@@ -13,8 +13,7 @@ import { visFloorOf } from '../visFloor';
 
 type FirebaseCfg = Extract<BackendConfig, { kind: 'firebase' }>;
 
-        const v = d.data() as { nickname?: string; avatarUrl?: string; avatarColor?: string };
-  const [{ initializeApp, getApps, getApp }, authMod, fsMod, stMod] = await Promise.all([
+        export async function createFirebaseBackend(cfg: FirebaseCfg): Promise<Backend> {
     import('firebase/app'),
     import('firebase/auth'),
     import('firebase/firestore'),
