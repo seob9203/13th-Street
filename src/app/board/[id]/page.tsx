@@ -19,6 +19,8 @@ import { PageTitle } from '@/components/ui/PageText';
 import { pushNotif } from '@/lib/notifStore';
 import { EmotePicker } from '@/components/ui/EmotePicker';
 import { CommentText } from '@/components/ui/CommentText';
+import { useMembers } from '@/lib/members';   // 13th-street: 작성자 프로필
+import { ProfileDot } from '@/components/ui/ProfileDot';
 
 
 const FOLD_LABEL = { spoiler: '스포일러 주의', adult: '수위 주의' };
@@ -38,6 +40,7 @@ export default function BoardDetailPage() {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [delAsk, setDelAsk] = useState(false);
   const [gName, setGName] = useState('');                       // 게스트 닉네임 (방문자 댓글 허용 시)
+    const members = useMembers();   // 13th-street: 작성자 프로필 — 회원 목록에서 사진·색을 찾는다
 
   const post = posts.find(p => p.id === id);
   /* 이 글이 속한 곳이 비공개면 주소로 들어와도 열리지 않게 (v2.0 사용자 요청).
@@ -132,6 +135,7 @@ export default function BoardDetailPage() {
 
   const CmtRow = ({ c, depth }: { c: Comment; depth: number }) => (
     <div className={`cmt ${depth > 0 ? 'reply-depth' : ''}`}>
+           <ProfileDot member={members.find(m => m.id === c.authorId)} size={20} />
       <b>{c.author}</b><small>{fmtDate(c.date)}</small>
       {canComment && depth === 0 && (
         <small style={{ cursor: 'var(--cur-pointer,pointer)', color: 'var(--accent)', marginLeft: 8 }}
@@ -155,7 +159,10 @@ export default function BoardDetailPage() {
     <section className="page">
       <div className="page-head">
         <PageTitle href={boardHref(board.id)}>{boardTitle}</PageTitle>
-        <p>{post.notice ? '공지 · ' : `${post.category} · `}{post.author} · {fmtDate(post.date)}</p>
+                <p>
+          <ProfileDot member={members.find(m => m.id === post.authorId)} size={24} />
+          {post.notice ? '공지 · ' : `${post.category} · `}{post.author} · {fmtDate(post.date)}
+        </p>
         <div className="head-actions">
           {/* 수정은 작성자 본인만 — 관리자도 타인 글은 삭제만 (v1.9) */}
           {isAuthor && (
