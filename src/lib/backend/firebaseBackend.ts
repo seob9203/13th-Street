@@ -256,7 +256,7 @@ type FirebaseCfg = Extract<BackendConfig, { kind: 'firebase' }>;
       const snap = await getDocs(collection(db, 'profiles'));
       return snap.docs.map(d => {
         // avatarUrl도 함께 — 이미지 정리가 프로필 사진을 「안 쓰는 파일」로 지우지 않게 (v2.0 사용자 제보)
-        const v = d.data() as { nickname?: string; avatarUrl?: string };
+                const v = d.data() as { nickname?: string; avatarUrl?: string; avatarColor?: string };
         return {
           id: d.id,
           nickname: v.nickname ?? d.id,
