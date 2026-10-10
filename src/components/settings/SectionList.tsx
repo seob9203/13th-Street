@@ -57,6 +57,10 @@ export function SectionList({ kind }: { kind: SectionKind }) {
   const oldestOf = (id: string) => !!ms.backupOldestBySec?.[id];
   const setOldestOf = (id: string, v: boolean) =>
     patchMenu({ backupOldestBySec: { ...ms.backupOldestBySec, [id]: v } });
+    // 13th-street: 갤러리별 댓글란 켜기/끄기
+  const commentsOf = (id: string) => !!ms.backupCommentsBySec?.[id];
+  const setCommentsOf = (id: string, v: boolean) =>
+    patchMenu({ backupCommentsBySec: { ...ms.backupCommentsBySec, [id]: v } });
 
   const patch = (id: string, name: string) => {
     const cur = items.map(s => (s.id === id ? { ...s, name } : s));
@@ -116,7 +120,13 @@ export function SectionList({ kind }: { kind: SectionKind }) {
             </div>
             <div className="cp-group" style={{ justifyContent: 'flex-end' }}>
                             {kind === 'gallery' && (
-                <div className="mini-seg" title="목록에서 글이 늘어서는 순서">
+                <div className="mini-seg" title="글 아래에 회원 댓글란 표시">
+                  <button className={!commentsOf(s.id) ? 'on' : ''}
+                    onClick={() => setCommentsOf(s.id, false)}>댓글 OFF</button>
+                  <button className={commentsOf(s.id) ? 'on' : ''}
+                    onClick={() => setCommentsOf(s.id, true)}>댓글 ON</button>
+                </div>
+            <div className="mini-seg" title="목록에서 글이 늘어서는 순서">
                   <button className={!oldestOf(s.id) ? 'on' : ''}
                     onClick={() => setOldestOf(s.id, false)}>최신순</button>
                   <button className={oldestOf(s.id) ? 'on' : ''}
