@@ -5,9 +5,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { useHrefBlock } from '@/components/shell/MenuGuard';
 import { sectionHref, MAIN_SEC, useSectionTitle } from '@/lib/sectionStore';
 import { useAuth } from '@/lib/auth';
-import { useLocalList, fmtDate } from '@/lib/postStore';
+import { useLocalList, fmtDate, newId, CommentRow, COMMENT_KEY, COMMENT_SEED, commentsFor, Comment } from '@/lib/postStore';
+import { pushNotif, notifyAdmins } from '@/lib/notifStore';   // 13th-street: 갤러리 댓글
 import { BackupPost, BACKUP_SEED } from '@/lib/galleryStore';
-import { ConfirmModal } from '@/components/ui/Modal';
+import { ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
+import { KInput } from '@/components/ui/Kit';   // 13th-street: 갤러리 댓글
+import { useMenuSettings } from '@/lib/menuStore';
+import { useToast } from '@/components/ui/Toast';
 import { useBlobUrl } from '@/lib/blobStore';
 import { sanitizeHtml } from '@/lib/sanitize';
 import { PageTitle } from '@/components/ui/PageText';
@@ -22,6 +26,13 @@ export default function BackupDetailPage() {
   const [cur, setCur] = useState(0);
   const [delAsk, setDelAsk] = useState(false);
   const [lbOpen, setLbOpen] = useState(false); // 단일형 — 클릭 확대 보기
+    // 13th-street: 갤러리 회원 댓글 — 갤러리마다 환경설정에서 켠 곳만
+  const toast = useToast();
+  const del = useConfirmDelete();
+  const [menuSet] = useMenuSettings();
+  const [cmtRows, setCmtRows] = useLocalList<CommentRow>(COMMENT_KEY, COMMENT_SEED);
+  const [cmt, setCmt] = useState('');
+  const [replyTo, setReplyTo] = useState<string | null>(null);
   const { st: boardSet } = useBoardSettings(); // 유형 뱃지 색 (환경설정 > 게시판 관리)
 
   const p = posts.find(x => x.id === id);
@@ -98,6 +109,39 @@ export default function BackupDetailPage() {
      예전 글이나 손님이 쓴 글은 authorId가 없는데, 비로그인 방문자도 user?.id가 없어
      `undefined === undefined`로 통과했다 — 아무나 남의 글을 고치고 지울 수 있었다 */
   const canManage = isAdmin || (!!p.authorId && p.authorId === user?.id);
+  
+  // 13th-street: 갤러리 댓글 — 켜 둔 갤러리에서만 보이고, 쓰는 건 로그인한 회원만 (손님은 읽기만)
+  const showComments = !!menuSet.backupCommentsBySec?.[p.secId ?? MAIN_SEC];
+  const comments = commentsFor(cmtRows, 'gallery', p.id);
+  const cmtRoots = comments.filter(c => !c.parentId);
+  const cmtChildren = (pid: string) => comments.filter(c => c.parentId === pid);
+  const addComment = () => {
+    if (!user || !cmt.trim()) return;
+    const c: CommentRow = {
+      id: newId(), text: cmt.trim(), date: new Date().toISOString(), parentId: replyTo ?? undefined,
+      target: 'gallery', targetId: p.id, author: user.nickname, authorId: user.id,
+    };
+    setCmtRows([...cmtRows, c]);
+    const href = `/gallery/${p.id}`;
+    // 글쓴이와 관리자에게, 답글이면 그 대화에 참여한 사람들에게도
+    if (p.authorId && p.authorId !== user.id) {
+      pushNotif({ type: 'comment', toUserId: p.authorId, href, title: `「${p.title}」에 새 댓글`, body: `${c.author} — ${c.text.slice(0, 50)}` });
+    }
+    notifyAdmins({ type: 'comment', href, title: `「${p.title}」에 새 댓글`, body: `${c.author} — ${c.text.slice(0, 50)}` });
+    if (replyTo) {
+      const seen = new Set<string>();
+      for (const t of comments.filter(x => x.id === replyTo || x.parentId === replyTo)) {
+        const to = t.authorId;
+        if (!to || to === user.id || to === p.authorId || seen.has(to)) continue;
+        seen.add(to);
+        pushNotif({ type: 'comment', toUserId: to, href, title: '참여한 댓글에 새 답글이 달렸습니다', body: `${c.author} — ${c.text.slice(0, 50)}` });
+      }
+    }
+    setCmt(''); setReplyTo(null);
+  };
+  const removeComment = (c: Comment) =>
+    del.ask('이 댓글을 삭제하시겠습니까?', () =>
+      setCmtRows(cmtRows.filter(x => !(x.id === c.id || x.parentId === c.id))));
   
   // 13th-street: 이전화/다음화 — 같은 갤러리에서 목록 순서 그대로 (목록은 최신 글이 위)
   const sid = p.secId ?? MAIN_SEC;
@@ -212,15 +256,56 @@ export default function BackupDetailPage() {
         <button className="btn btn-dark" disabled={!nextPost} title={nextPost?.title}
           onClick={() => nextPost && router.push(`/gallery/${nextPost.id}`)}>다음 화 ▷</button>
       </div>
+      
+      {/* 13th-street: 갤러리 회원 댓글 */}
+      {showComments && (
+        <div className="panel" style={{ padding: 20, maxWidth: 960, margin: '14px auto 0' }}>
+          <div className="thr-cmts" style={{ padding: 0, border: 'none' }}>
+            <h4>COMMENTS {comments.length > 0 && <span>{comments.length}</span>}</h4>
+            {cmtRoots.map(c => (
+              <React.Fragment key={c.id}>
+                {[c, ...cmtChildren(c.id)].map((x, i) => (
+                  <div key={x.id} className={`cmt ${i > 0 ? 'reply-depth' : ''}`}>
+                    <b>{x.author}</b><small>{fmtDate(x.date)}</small>
+                    {user && i === 0 && (
+                      <small style={{ cursor: 'var(--cur-pointer,pointer)', color: 'var(--accent)', marginLeft: 8 }}
+                        onClick={() => setReplyTo(replyTo === x.id ? null : x.id)}>
+                        {replyTo === x.id ? '답글 취소' : '답글'}
+                      </small>
+                    )}
+                    {(isAdmin || (user && x.authorId === user.id)) && (
+                      <small style={{ cursor: 'var(--cur-pointer,pointer)', marginLeft: 8 }}
+                        onClick={() => removeComment(x)}>삭제</small>
+                    )}
+                    <p>{x.text}</p>
+                  </div>
+                ))}
+              </React.Fragment>
+            ))}
+            {comments.length === 0 && <p className="hint" style={{ margin: 0 }}>{user ? '첫 댓글을 남겨보세요' : '댓글이 없습니다'}</p>}
+          </div>
+          {user ? (
+            <div className="cmt-input" style={{ padding: '12px 0 0' }}>
+              <KInput placeholder={replyTo ? '답글 작성...' : '댓글 남기기...'} value={cmt}
+                onChange={e => setCmt(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') addComment(); }} />
+              <button className="btn btn-dark" onClick={addComment}>POST</button>
+            </div>
+          ) : (
+            <p className="hint" style={{ margin: '12px 0 0' }}>댓글은 로그인한 회원만 쓸 수 있습니다</p>
+          )}
+        </div>
+      )}
       {/* 단일형·단일(세로) 확대 보기 — 뷰어와 같은 순번에서 시작, ‹ ›로 이어 넘김 */}
       {lbOpen && (p.type === 'single' || p.type === 'vlist') && p.images.length > 0 && (
         <Lightbox srcs={p.images} index={cur} onClose={() => setLbOpen(false)} />
       )}
 
+      {del.element}
       <ConfirmModal open={delAsk} title="게시물을 삭제하시겠습니까?" body="삭제한 게시물은 복구할 수 없습니다."
         onClose={() => setDelAsk(false)}
         buttons={[
-          { label: 'DELETE', kind: 'accent', onClick: () => { setPosts(posts.filter(x => x.id !== p.id)); router.push(tt.href); } },
+                    { label: 'DELETE', kind: 'accent', onClick: () => { setPosts(posts.filter(x => x.id !== p.id)); setCmtRows(cmtRows.filter(c => !(c.target === 'gallery' && c.targetId === p.id))); router.push(tt.href); } },
           { label: 'CANCEL', kind: 'ghost', onClick: () => setDelAsk(false) },
         ]} />
     </section>
