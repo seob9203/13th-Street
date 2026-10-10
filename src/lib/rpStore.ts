@@ -9,6 +9,7 @@ export interface RpMessage {
   charId?: string;                  // kind==='char'일 때 발화 캐릭터
   charOwn?: boolean;                // 발화 당시 내 캐릭터(자캐)였는지 — 삭제된 캐릭터 재연동 시 리스트 판별용
     side?: 'left' | 'right';          // 말풍선 위치 지정 (없으면 자동)
+    images?: string[];                // 13th-street: 첨부 이미지
   authorId: string;                 // 작성 회원 (수정/삭제 권한)
   text: string;
   date: string;                     // ISO
