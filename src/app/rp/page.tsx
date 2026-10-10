@@ -13,7 +13,8 @@ import { Character, CHAR_SEED, Relation, REL_SEED, charGrant, charWithAu } from 
 import { Modal, ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput, KTextarea, KSelect, KCheck } from '@/components/ui/Kit';
 import { CroppedBlobImg, CropEditor, type CropValue } from '@/components/ui/CropEditor';
-import { useBlobUrl, putBlob } from '@/lib/blobStore';   // 13th-street: 프로필 사진 위치 조정
+import { useBlobUrl, putBlob, BlobImg } from '@/lib/blobStore';   // 13th-street: 프로필 사진 위치 조정
+import { Lightbox } from '@/components/ui/Lightbox';   // 13th-street: 대사 사진 확대 보기
 import { ColorField } from '@/components/ui/ColorField';   // 13th-street: 역극 전용 프로필
 import { createPortal } from 'react-dom';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
@@ -40,6 +41,25 @@ function FaceCropModal({ fileRef, crop, onClose, onApply }: {
   if (!url) return null;
   return <CropEditor open src={url} aspect="1:1" initial={crop} onClose={onClose} onApply={onApply} />;
 }
+
+// 13th-street: 사진 붙여넣기·끌어다 놓기 — 글자가 같이 붙는 경우(워드·엑셀)는 평소처럼 둔다
+const imgFilesOf = (dt?: DataTransfer | null) =>
+  Array.from(dt?.files ?? []).filter(f => f.type.startsWith('image/'));
+const pasteImgs = (e: React.ClipboardEvent, add: (fs: File[]) => void) => {
+  const fs = imgFilesOf(e.clipboardData);
+  if (fs.length === 0 || e.clipboardData.getData('text/plain')) return;
+  e.preventDefault();
+  add(fs);
+};
+const overFiles = (e: React.DragEvent) => {
+  if (Array.from(e.dataTransfer.types).includes('Files')) e.preventDefault();
+};
+const dropImgs = (e: React.DragEvent, add: (fs: File[]) => void) => {
+  const fs = imgFilesOf(e.dataTransfer);
+  if (fs.length === 0) return;
+  e.preventDefault();
+  add(fs);
+};
 
 const fmtHM = (iso: string) => {
   const d = new Date(iso);
@@ -262,30 +282,63 @@ function RpPageInner() {
   }, [sel?.id, msgRows.length]);
 
   const [text, setText] = useState('');
-  const send = () => {
-    if (!sel || !user) return;
+    // 13th-street: 대사 사진 첨부
+  const [files, setFiles] = useState<File[]>([]);
+  const [urls, setUrls] = useState<string[]>([]);
+  const [imgBusy, setImgBusy] = useState(false);
+  const [lb, setLb] = useState<{ srcs: string[]; idx: number } | null>(null);
+  const imgInputRef = useRef<HTMLInputElement>(null);
+  const addFiles = (list: FileList | File[] | null) => {
+    if (!list) return;
+    const arr = Array.from(list).filter(f => f.type.startsWith('image/'));
+    if (arr.length === 0) return;
+    if (files.length + arr.length > 4) toast('이미지는 최대 4장까지 첨부할 수 있습니다');
+    const next = [...files, ...arr].slice(0, 4);
+    setFiles(next);
+    setUrls(next.map(f => URL.createObjectURL(f)));
+  };
+  const removeFile = (i: number) => {
+    const next = files.filter((_, x) => x !== i);
+    setFiles(next);
+    setUrls(next.map(f => URL.createObjectURL(f)));
+  };
+    const send = async () => {
+    if (!sel || !user || imgBusy) return;
     let t = text.trim();
-    if (!t) return;
+    if (!t && files.length === 0) return;
+    // 13th-street: 사진을 먼저 올린다
+    const images: string[] = [];
+    if (files.length) {
+      setImgBusy(true);
+      try { for (const f of files) images.push(await putBlob(f)); }
+      catch (e) {
+        toast(`이미지를 올리지 못했습니다 — ${e instanceof Error ? e.message : String(e)}`);
+        setImgBusy(false);
+        return;
+      }
+      setImgBusy(false);
+    }
     let kind: RpMessage['kind'] = speaker === 'desc' ? 'desc' : 'char';
     if (t.startsWith('/desc ')) { kind = 'desc'; t = t.slice(6).trim(); } // /desc 명령 (v1.8)
-    if (!t) return;
+        if (!t && images.length === 0) return;
     const m: RpMessage = {
       id: newId(), kind, charId: kind === 'char' ? speaker : undefined,
       // 발화 당시 소유 기록 — 캐릭터가 삭제돼도 재연동 시 어느 리스트에서 고를지 판별 (v1.9)
       charOwn: kind === 'char' ? rpChars.find(c => c.id === speaker)?.own : undefined,
       authorId: user.id, text: t, date: new Date().toISOString(),
             side: kind === 'char' ? sideOf[speaker] : undefined,   // 13th-street: 좌우 지정
+            ...(images.length ? { images } : {}),   // 13th-street: 사진
     };
     // 방은 건드리지 않는다 — 발화만 자기 행으로 (v2.0)
     setMsgRows([...msgRows, { ...m, roomId: sel.id }]);
     rpMarkRead(sel.id, user.id, m.date);
-    setText('');
+        setText(''); setFiles([]); setUrls([]);
     // 알림 (4.13) — 나를 제외한 참여자에게, 방 단위로 묶어서 (디스코드 DM은 봇 연동 시)
     memberIdsOf(sel).filter(id => id !== user.id).forEach(id =>
       pushNotif({
         type: 'rp', toUserId: id, href: '/rp', dedupeKey: `rp:${sel.id}`,
         title: `역극 「${sel.title}」 새 메시지`,
-        body: t.slice(0, 60),
+        body: t ? t.slice(0, 60) : '사진을 보냈습니다',
       }));
   };
 
@@ -615,7 +668,14 @@ ${rows}
                         }} />
                       <div>
                         <div className="who">{name}</div>
-                        <div className="bub">{m.text}</div>
+                        {m.text && <div className="bub">{m.text}</div>}
+                        {m.images && m.images.length > 0 && (
+                          <div className="thr-imgs" style={{ maxWidth: 260, margin: m.text ? '6px 0 0' : 0, ...(m.images.length === 1 ? { gridTemplateColumns: '1fr' } : null) }}>
+                            {m.images.map((id, k) => (
+                              <div key={id} className="im" onClick={() => setLb({ srcs: m.images!, idx: k })}><BlobImg fileRef={id} /></div>
+                            ))}
+                          </div>
+                        )}
                         <div style={{ fontSize: 9, color: 'var(--faint)', marginTop: 3 }}>{fmtHM(m.date)}</div>
                       </div>
                       {mine && (
@@ -633,7 +693,21 @@ ${rows}
               </div>
 
               {sel.status === 'ongoing' && (
-                <div className="rp-input">
+                <div className="rp-input" style={{ flexWrap: 'wrap' }}
+                  onPaste={e => pasteImgs(e, addFiles)}
+                  onDragOver={overFiles}
+                  onDrop={e => dropImgs(e, addFiles)}>
+                  {urls.length > 0 && (
+                    <div className="thr-att" style={{ padding: 0, flexBasis: '100%' }}>
+                      {urls.map((u, i) => (
+                        <div key={u} className="at">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={u} alt="" />
+                          <button onClick={() => removeFile(i)}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {/* 발화자 선택 — 캐릭터 / 지문 (v2.0 사용자 확정: 역극에는 이 둘만 있으면 된다) */}
                   <div className="char-pick" onClick={() => setPickOpen(o => !o)}>
                     {speaker === 'desc'
@@ -675,7 +749,16 @@ ${rows}
                         swapSpeaker();
                       }
                     }} />
-                  <button className="btn btn-dark" onClick={send}>SEND</button>
+                  <input ref={imgInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+                    onChange={e => { addFiles(e.target.files); e.target.value = ''; }} />
+                  <button type="button" className="icobtn" data-tip="사진 추가 (최대 4장)" onClick={() => imgInputRef.current?.click()}>
+                    <svg viewBox="0 0 24 24">
+                      <rect x="3" y="4" width="18" height="16" rx="3" />
+                      <circle cx="9" cy="10" r="1.6" />
+                      <path d="M3.5 17.5 9 13l4 3.5 3.5-3 4 4" />
+                    </svg>
+                  </button>
+                  <button className="btn btn-dark" disabled={imgBusy} onClick={send}>SEND</button>
                 </div>
               )}
             </>
@@ -941,6 +1024,7 @@ ${rows}
           onClose={() => setPfCropOpen(false)}
           onApply={c => { setPf(s => s && { ...s, crop: c }); setPfCropOpen(false); }} />
       )}
+      {lb && <Lightbox srcs={lb.srcs} index={lb.idx} onClose={() => setLb(null)} />}
       {del.element}
     </section>
   );
