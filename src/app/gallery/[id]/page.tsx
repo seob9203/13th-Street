@@ -10,6 +10,8 @@ import { pushNotif, notifyAdmins } from '@/lib/notifStore';   // 13th-street: �
 import { BackupPost, BACKUP_SEED } from '@/lib/galleryStore';
 import { ConfirmModal, useConfirmDelete } from '@/components/ui/Modal';
 import { KInput } from '@/components/ui/Kit';   // 13th-street: 갤러리 댓글
+import { EmotePicker } from '@/components/ui/EmotePicker';   // 13th-street: 갤러리 댓글 이모티콘
+import { CommentText } from '@/components/ui/CommentText';
 import { useMenuSettings } from '@/lib/menuStore';
 import { useToast } from '@/components/ui/Toast';
 import { useBlobUrl, putBlob, BlobImg } from '@/lib/blobStore';
@@ -329,7 +331,7 @@ export default function BackupDetailPage() {
                       <small style={{ cursor: 'var(--cur-pointer,pointer)', marginLeft: 8 }}
                         onClick={() => removeComment(x)}>삭제</small>
                     )}
-{x.text && <p>{x.text}</p>}
+                    {x.text && <p><CommentText text={x.text} /></p>}
                     {x.images && x.images.length > 0 && (
                       <div className={`thr-imgs ${x.images.length === 1 ? 'one' : ''}`} style={{ maxWidth: 260, margin: '6px 0 0' }}>
                         {x.images.map((id, k) => (
@@ -369,6 +371,7 @@ export default function BackupDetailPage() {
                     <path d="M3.5 17.5 9 13l4 3.5 3.5-3 4 4" />
                   </svg>
                 </button>
+                <EmotePicker onPick={t => setCmt(cmt + t)} />
                 <button className="btn btn-dark" disabled={cmtBusy} onClick={addComment}>POST</button>
               </div>
             </div>
