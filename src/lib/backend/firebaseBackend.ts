@@ -13,7 +13,7 @@ import { visFloorOf } from '../visFloor';
 
 type FirebaseCfg = Extract<BackendConfig, { kind: 'firebase' }>;
 
-export async function createFirebaseBackend(cfg: FirebaseCfg): Promise<Backend> {
+        const v = d.data() as { nickname?: string; avatarUrl?: string; avatarColor?: string };
   const [{ initializeApp, getApps, getApp }, authMod, fsMod, stMod] = await Promise.all([
     import('firebase/app'),
     import('firebase/auth'),
@@ -262,6 +262,7 @@ export async function createFirebaseBackend(cfg: FirebaseCfg): Promise<Backend> 
           nickname: v.nickname ?? d.id,
           role: (admins.has(d.id) ? 'admin' : 'member') as 'admin' | 'member',
           avatarUrl: v.avatarUrl,
+                    avatarColor: v.avatarColor,
         };
       });
     },
