@@ -308,14 +308,18 @@ export function TodoWidget({ conf }: { conf: WidgetConf }) {
         setOpen(true);
       }}>
       <h4>TO-DO {isAdmin && <span className="more">관리 ›</span>}</h4>
-      {items.map((it, i) => (
-        <label className={`todo-row k-check ${it.done ? 'done' : ''}`} key={`${it.text}-${i}`}
-          style={!isAdmin ? { pointerEvents: 'none' } : undefined}>
-          <input type="checkbox" checked={it.done}
-            onChange={ev => setItems(items.map((x, j) => (j === i ? { ...x, done: ev.target.checked } : x)))} />
-          <span className="box" /><span>{it.text}</span>
-        </label>
-      ))}
+            {/* 13th-street: 체크한 항목은 화면에서만 맨 아래로 모은다 — 저장된 순서는 그대로 (체크를 풀면 제자리로) */}
+      {items
+        .map((it, i) => ({ it, i }))
+        .sort((a, b) => Number(!!a.it.done) - Number(!!b.it.done) || a.i - b.i)
+        .map(({ it, i }) => (
+          <label className={`todo-row k-check ${it.done ? 'done' : ''}`} key={`${it.text}-${i}`}
+            style={!isAdmin ? { pointerEvents: 'none' } : undefined}>
+            <input type="checkbox" checked={it.done}
+              onChange={ev => setItems(items.map((x, j) => (j === i ? { ...x, done: ev.target.checked } : x)))} />
+            <span className="box" /><span>{it.text}</span>
+          </label>
+        ))}
       {items.length === 0 && <p className="hint">할 일이 없습니다</p>}
 
       <Modal open={open} onClose={() => setOpen(false)} title="투두 관리"
