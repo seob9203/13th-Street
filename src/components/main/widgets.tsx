@@ -308,18 +308,37 @@ export function TodoWidget({ conf }: { conf: WidgetConf }) {
         setOpen(true);
       }}>
       <h4>TO-DO {isAdmin && <span className="more">관리 ›</span>}</h4>
-            {/* 13th-street: 체크한 항목은 화면에서만 맨 아래로 모은다 — 저장된 순서는 그대로 (체크를 풀면 제자리로) */}
+            {/* 13th-street: 체크 두 칸(둘 다 체크해야 완료) — 완료한 항목은 화면에서만 맨 아래로 모은다 */}
+      <style>{`
+        .todo-row.k-check .box.c1{border-color:#1d2025}
+        .todo-row.k-check input:checked + .box.c1{background:#1d2025;border-color:#1d2025}
+        .todo-row.k-check .box.c2{border-color:#5787a1}
+        .todo-row.k-check input:checked + .box.c2{background:#5787a1;border-color:#5787a1}
+        .todo-row .tdbox{display:inline-flex;align-items:center;cursor:var(--cur-pointer,pointer)}
+        .todo-row .tdbox input{display:none}
+      `}</style>
       {items
-        .map((it, i) => ({ it, i }))
-        .sort((a, b) => Number(!!a.it.done) - Number(!!b.it.done) || a.i - b.i)
-        .map(({ it, i }) => (
-          <label className={`todo-row k-check ${it.done ? 'done' : ''}`} key={`${it.text}-${i}`}
-            style={!isAdmin ? { pointerEvents: 'none' } : undefined}>
-            <input type="checkbox" checked={it.done}
-              onChange={ev => setItems(items.map((x, j) => (j === i ? { ...x, done: ev.target.checked } : x)))} />
-            <span className="box" /><span>{it.text}</span>
-          </label>
-        ))}
+        .map((it, i) => ({ it, i, d2: it.done2 ?? it.done }))
+        .sort((a, b) => Number(!!(a.it.done && a.d2)) - Number(!!(b.it.done && b.d2)) || a.i - b.i)
+        .map(({ it, i, d2 }) => {
+          const fin = !!(it.done && d2);
+          return (
+            <div className={`todo-row k-check ${fin ? 'done' : ''}`} key={`${it.text}-${i}`}
+              style={!isAdmin ? { pointerEvents: 'none' } : undefined}>
+              <label className="tdbox">
+                <input type="checkbox" checked={!!it.done}
+                  onChange={ev => setItems(items.map((x, j) => (j === i ? { ...x, done: ev.target.checked, done2: x.done2 ?? x.done } : x)))} />
+                <span className="box c1" />
+              </label>
+              <label className="tdbox">
+                <input type="checkbox" checked={!!d2}
+                  onChange={ev => setItems(items.map((x, j) => (j === i ? { ...x, done2: ev.target.checked } : x)))} />
+                <span className="box c2" />
+              </label>
+              <span>{it.text}</span>
+            </div>
+          );
+        })}
       {items.length === 0 && <p className="hint">할 일이 없습니다</p>}
 
       <Modal open={open} onClose={() => setOpen(false)} title="투두 관리"
