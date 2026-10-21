@@ -130,7 +130,7 @@ export function DdayEditor({ conf }: { conf: WidgetConf }) {
 }
 
 /* ---------- TO-DO — settings.items: {text, done}[] ---------- */
-export interface TodoSetItem { text: string; done: boolean }
+export interface TodoSetItem { text: string; done: boolean; done2?: boolean }   // 13th-street: 두 번째 체크 칸
 
 export function TodoEditor({ conf }: { conf: WidgetConf }) {
   const { updateWidget } = useMainStore();
@@ -159,8 +159,9 @@ export function TodoEditor({ conf }: { conf: WidgetConf }) {
         render={(it, i) => (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 4px', borderBottom: '1px dashed var(--line)' }}>
             <span className="drag-h">⠿</span>
-            <KCheck checked={it.done} onChange={v => set(items.map((x, j) => (j === i ? { ...x, done: v } : x)))} />
-            <span style={{ fontSize: 13, textDecoration: it.done ? 'line-through' : undefined, color: it.done ? 'var(--faint)' : undefined }}>{it.text}</span>
+            <KCheck checked={!!it.done} onChange={v => set(items.map((x, j) => (j === i ? { ...x, done: v, done2: x.done2 ?? x.done } : x)))} />
+            <KCheck checked={!!(it.done2 ?? it.done)} onChange={v => set(items.map((x, j) => (j === i ? { ...x, done2: v } : x)))} />
+                        <span style={{ fontSize: 13, textDecoration: (it.done && (it.done2 ?? it.done)) ? 'line-through' : undefined, color: (it.done && (it.done2 ?? it.done)) ? 'var(--faint)' : undefined }}>{it.text}</span>
             {/* 높이 24px 짝수 고정 + flex 세로 중앙 (v1.9 사용자 피드백) */}
             <button className="btn btn-ghost" style={{ marginLeft: 'auto', height: 24, padding: '0 11px', fontSize: 10.5, display: 'inline-flex', alignItems: 'center' }}
               onClick={() => set(items.filter((_, j) => j !== i))}>DELETE</button>
