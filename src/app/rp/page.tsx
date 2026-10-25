@@ -95,6 +95,9 @@ function RpPageInner() {
   const [nTag, setNTag] = useState('');
   const [tagOpen, setTagOpen] = useState(false);
   const [tagText, setTagText] = useState('');
+    // 13th-street: 방 이름 수정
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameText, setRenameText] = useState('');
   // 모바일 (v1.9 사용자 확정) — 방 목록은 위에 접힌 바로, 입력창 포커스 중엔 역극 영역만 표시
   const [mListOpen, setMListOpen] = useState(false);
   const [mFocus, setMFocus] = useState(false);
@@ -607,6 +610,10 @@ ${rows}
                     <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5 }}
                       onClick={() => { setTagText(sel.tag ?? ''); setTagOpen(true); }}>TAG</button>
                   )}
+                                    {canManage && (
+                    <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5 }}
+                      onClick={() => { setRenameText(sel.title); setRenameOpen(true); }}>RENAME</button>
+                  )}
                   {canManage && sel.status === 'ongoing' && (
                     <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: 10.5 }}
                       onClick={() => setEndAsk(true)}>END</button>
@@ -920,6 +927,27 @@ ${rows}
         </div>
       </Modal>
 
+      {/* 13th-street: 방 이름 수정 */}
+      <Modal open={renameOpen} onClose={() => setRenameOpen(false)} small title="방 이름 수정"
+        actions={<>
+          <button className="btn btn-ghost" onClick={() => setRenameOpen(false)}>CANCEL</button>
+          <button className="btn btn-dark" onClick={() => {
+            if (!renameText.trim()) { toast('방 제목을 입력해 주세요'); return; }
+            patchRoom({ title: renameText.trim() });
+            setRenameOpen(false);
+            toast('방 이름을 바꿨습니다');
+          }}>SAVE</button>
+        </>}>
+        <KInput value={renameText} onChange={e => setRenameText(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              if (!renameText.trim()) { toast('방 제목을 입력해 주세요'); return; }
+              patchRoom({ title: renameText.trim() });
+              setRenameOpen(false);
+              toast('방 이름을 바꿨습니다');
+            }
+          }} />
+      </Modal>
       {/* 13th-street: 말머리 설정 */}
       <Modal open={tagOpen} onClose={() => setTagOpen(false)} small title="말머리 설정"
         desc="비워 두면 말머리가 없어집니다"
