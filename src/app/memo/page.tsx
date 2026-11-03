@@ -1,11 +1,11 @@
 'use client';
 // 스티커 메모장 (4.6) — 포스트잇 보드: 드래그 자유 배치 · 색/크기 · 랜덤 기울기 ·
 // 클릭 = 맨 위로 · 우클릭 자체 컨텍스트 메뉴(순서/수정/삭제) · 우측 메모 리스트 · 작성 권한 옵션
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useLocalList, newId } from '@/lib/postStore';
 import {
-  StickyMemo, MEMO_SEED, MEMO_COLORS, MEMO_SIZE_W, useMemoSettings,
+  StickyMemo, MEMO_SEED, MEMO_COLORS, MEMO_SIZE_W, useMemoSettings, MEMO_PAGES_KEY,
 } from '@/lib/memoStore';
 import { fmtMD } from '@/lib/threadStore';
 import { Modal, useConfirmDelete } from '@/components/ui/Modal';
@@ -13,6 +13,7 @@ import { KTextarea } from '@/components/ui/Kit';
 import { ColorField } from '@/components/ui/ColorField';
 import { EditableDesc, PageTitle } from '@/components/ui/PageText';
 import { useToast } from '@/components/ui/Toast';
+import { getSetting, setSetting, onSettingChange } from '@/lib/settingStore';   // 13th-street: 메모 보드 장 수
 
 export default function MemoPage() {
   const { user, isAdmin } = useAuth();
@@ -22,6 +23,21 @@ export default function MemoPage() {
   const [settings] = useMemoSettings();
   const boardRef = useRef<HTMLDivElement>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  
+  /* 13th-street: 보드 여러 장 — 장 수는 사이트 설정에 저장(관리자가 ＋로 늘림), 메모는 각자 page 번호를 가진다 */
+  const [cur, setCur] = useState(1);
+  const [pageCount, setPageCount] = useState(1);
+  useEffect(() => {
+    const load = () => { const v = getSetting<number>(MEMO_PAGES_KEY, 1); setPageCount(typeof v === 'number' && v >= 1 ? v : 1); };
+    load();
+    return onSettingChange(k => { if (k === MEMO_PAGES_KEY) load(); });
+  }, []);
+  // 메모가 있는 가장 큰 장까지는 항상 탭이 보이게 (장 수 설정보다 메모가 더 멀리 있어도 안전)
+  const maxMemoPage = Math.max(1, ...memos.map(m => m.page ?? 1));
+  const pages = Math.max(pageCount, maxMemoPage);
+  const pageOf = (m: StickyMemo) => m.page ?? 1;
+  const pageMemos = memos.filter(m => pageOf(m) === cur);
+  const addPage = () => { const next = pages + 1; setPageCount(next); setSetting(MEMO_PAGES_KEY, next); setCur(next); };
 
   const canWrite = isAdmin || (!!user && settings.allowMember);
   const canTouch = (m: StickyMemo) => isAdmin || (!!user && m.authorId === user.id);
@@ -122,6 +138,7 @@ export default function MemoPage() {
         x: 6 + Math.random() * 55, y: 6 + Math.random() * 55,
         rot: Math.round((Math.random() * 6 - 3) * 10) / 10, // 랜덤 기울기 (4.6)
         z: maxZ() + 1, date: new Date().toISOString(),
+                page: cur,   // 13th-street: 지금 보고 있는 장에 붙인다
       };
       setMemos([...memos, m]);
     }
@@ -133,6 +150,8 @@ export default function MemoPage() {
   };
 
   const focus = (id: string) => {
+    const target = memos.find(m => m.id === id);
+    if (target) setCur(pageOf(target));   // 13th-street: 그 메모가 있는 장으로 넘어간다
     setMemos(memos.map(m => m.id === id ? { ...m, z: maxZ() + 1 } : m));
     setFocusId(id);
     setTimeout(() => setFocusId(f => (f === id ? null : f)), 900);
@@ -150,9 +169,10 @@ export default function MemoPage() {
       </div>
       <div className="memo-layout">
         {/* 보드 — 배치·순서 저장, 모두에게 동일 (4.6) */}
-        <div className="memoboard" ref={boardRef}
+<div style={{ minWidth: 0 }}>
+  <div className="memoboard" ref={boardRef}
           onContextMenu={e => { if (!(e.target as Element).closest('.postit')) setCtx(null); }}>
-          {memos.map(m => (
+          {pageMemos.map(m => (
             <div key={m.id}
               className={`postit ${focusId === m.id ? 'hl' : ''} ${canTouch(m) ? '' : 'ro'}`}
               style={{
@@ -166,23 +186,41 @@ export default function MemoPage() {
             </div>
           ))}
         </div>
+          {/* 13th-street: 보드 장 탭 — 보드 아래 */}
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+            {Array.from({ length: pages }, (_, i) => i + 1).map(n => (
+              <button key={n} type="button" className={`btn ${cur === n ? 'btn-dark' : 'btn-ghost'}`}
+                style={{ padding: 0, width: 34, height: 30, justifyContent: 'center', fontSize: 12 }}
+                onClick={() => setCur(n)}>{n}</button>
+            ))}
+            {isAdmin && (
+              <button type="button" className="btn btn-ghost" data-tip="새 보드 추가"
+                style={{ padding: 0, width: 34, height: 30, justifyContent: 'center', fontSize: 14 }}
+                onClick={addPage}>＋</button>
+            )}
+          </div>
+        </div>
         {/* 우측 메모 리스트 (v1.8) — 클릭 시 보드의 메모가 맨 위로 + 하이라이트 */}
-        <div className="panel" style={{ padding: 12 }}>
-          <h4 style={{ fontSize: 11, letterSpacing: '.14em', color: 'var(--faint)', padding: '4px 6px 10px' }}>MEMO LIST</h4>
-          {sorted.map(m => (
-            <div key={m.id} className="memo-list-item" onClick={() => focus(m.id)}
-              onContextMenu={e => onCtx(e, m, true)}>
-              <span className="cdot" style={{ background: m.color }} />
-              <div style={{ minWidth: 0 }}>
-                <b>{m.author} · {fmtMD(m.date)}</b>
-                <p>{m.text}</p>
-              </div>
-            </div>
-          ))}
+                <div className="panel" style={{ padding: 12, display: 'flex', flexDirection: 'column', maxHeight: 640 }}>
+          <h4 style={{ fontSize: 11, letterSpacing: '.14em', color: 'var(--faint)', padding: '4px 6px 10px', flexShrink: 0 }}>MEMO LIST</h4>
+          {/* 13th-street: ＋ MEMO는 위에 고정 — 목록이 길어져도 스크롤 없이 늘 보인다 */}
           {canWrite && (
-            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
+            <button className="btn btn-ghost" style={{ width: '100%', justifyContent: 'center', marginBottom: 8, flexShrink: 0 }}
               onClick={openNew}>＋ MEMO</button>
           )}
+          {/* 장과 상관없이 전체 메모를 스크롤로 */}
+          <div style={{ overflowY: 'auto', minHeight: 0, flex: 1 }}>
+            {sorted.map(m => (
+              <div key={m.id} className="memo-list-item" onClick={() => focus(m.id)}
+                onContextMenu={e => onCtx(e, m, true)}>
+                <span className="cdot" style={{ background: m.color }} />
+                <div style={{ minWidth: 0 }}>
+                  <b>{m.author} · {fmtMD(m.date)}{pages > 1 && <> · p.{pageOf(m)}</>}</b>
+                  <p>{m.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
