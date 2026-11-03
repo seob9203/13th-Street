@@ -14,6 +14,7 @@ export interface StickyMemo {
   z: number;                 // 겹침 순서
   size: 's' | 'm' | 'l';     // 크기
   date: string;              // ISO
+    page?: number;             // 13th-street: 몇 번째 보드(장)인지 — 없으면 1
 }
 
 export const MEMO_COLORS = ['#f4ecd7', '#dfe7dd', '#e7dfe4', '#dde4ea', '#efe3da'];
@@ -49,3 +50,6 @@ export function useMemoSettings(): [MemoSettings, (patch: Partial<MemoSettings>)
 
 /* ---------- 시드 (프로토타입 데모 계승) ---------- */
 export const MEMO_SEED: StickyMemo[] = [];
+
+/* 13th-street: 메모 보드(장) 수 — 관리자가 ＋로 늘린다 */
+export const MEMO_PAGES_KEY = 'ohome.memopages.v1';
