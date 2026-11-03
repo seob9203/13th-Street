@@ -535,7 +535,7 @@ a{color:inherit;text-decoration:none}
 
 /* ================= 스티커 메모장 (4.6 — 프로토타입 memo-* 계승) ================= */
 .memo-layout{display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start}
-.memoboard{position:relative;height:640px;border-radius:var(--radius);background:var(--memo-board,rgba(255,255,255,.06));border:1px solid var(--memo-board-bd,var(--line-dark));overflow:hidden} /* 색은 디자인 탭 (v1.9) */
+.memoboard{isolation:isolate;position:relative;height:640px;border-radius:var(--radius);background:var(--memo-board,rgba(255,255,255,.06));border:1px solid var(--memo-board-bd,var(--line-dark));overflow:hidden} /* 색은 디자인 탭 (v1.9) */
 .postit{position:absolute;width:158px;padding:14px 14px 18px;font-size:calc(11.5px*var(--fs,1));line-height:1.65;color:#3c3a33;box-shadow:0 8px 20px rgba(0,0,0,.3);cursor:var(--cur-drag,grab);white-space:pre-line;user-select:none}
 .postit b{display:block;font-size:calc(9.5px*var(--fs,1));letter-spacing:.1em;color:rgba(0,0,0,.4);margin-bottom:6px}
 .postit:active{cursor:grabbing}
