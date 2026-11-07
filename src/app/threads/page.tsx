@@ -450,7 +450,7 @@ function ThreadsPageInner() {
                     onDragOver={overFiles}
                     onDrop={e => dropImgs(e, addFiles)}>
                     <textarea placeholder="타래 이어쓰기…" value={text} onChange={e => setText(e.target.value)}
-                      onKeyDown={e => { if (e.altKey && e.key === 'Enter') { e.preventDefault(); void post(); } }} />
+                      onKeyDown={e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); void post(); } }} />
                     {urls.length > 0 && (
                       <div className="thr-att">
                         {urls.map((u, i) => (
