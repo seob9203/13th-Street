@@ -548,7 +548,6 @@ function ThreadsPageInner() {
                     )}
                     <EmotePicker onPick={t => setCmt(cmt + t)} />
                     <button className="btn btn-dark" disabled={cmtBusy} onClick={addComment}>POST</button>
-                    <button className="btn btn-dark" disabled={cmtBusy} onClick={addComment}>POST</button>
                   </div>
                 </div>
               </>
